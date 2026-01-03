@@ -24,6 +24,7 @@ func NewDashboardModel() DashboardModel {
 
 func (m *DashboardModel) SetData(data AnalysisResult) {
 	m.data = data
+	m.bridge = NewAnalyzerDataBridge(data)
 }
 
 type exportMsg struct {

@@ -21,14 +21,20 @@ const (
 )
 
 type MainModel struct {
-	state        sessionState
-	menu         MenuModel
-	input        string // Repository input
-	spinner      spinner.Model
-	dashboard    DashboardModel
-	err          error
-	windowWidth  int
-	windowHeight int
+	state         sessionState
+	menu          EnhancedMenuModel
+	input         string // Repository input
+	spinner       spinner.Model
+	dashboard     DashboardModel
+	settings      SettingsModel
+	help          HelpModel
+	history       HistoryModel
+	progress      *ProgressTracker
+	err           error
+	windowWidth   int
+	windowHeight  int
+	analysisType  string // quick, detailed, custom
+	appSettings   AppSettings
 }
 
 func NewMainModel() MainModel {
@@ -107,10 +113,12 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if result, ok := msg.(AnalysisResult); ok {
 			m.dashboard.SetData(result)
 			m.state = stateDashboard
+			m.progress = nil
 		}
 		if err, ok := msg.(error); ok {
 			m.err = err
 			m.state = stateInput // Go back to input on error
+			m.progress = nil
 		}
 
 	case stateDashboard:
@@ -135,10 +143,38 @@ func (m MainModel) View() string {
 	case stateInput:
 		return m.inputView()
 	case stateLoading:
+		loadMsg := fmt.Sprintf("📊 Analyzing %s", m.input)
+		if m.analysisType != "" {
+			loadMsg += fmt.Sprintf(" (%s mode)", strings.ToUpper(m.analysisType))
+		}
+
+		statusView := fmt.Sprintf("%s %s...", m.spinner.View(), loadMsg)
+
+		// Show progress stages if available
+		if m.progress != nil {
+			stages := m.progress.GetAllStages()
+			statusView += "\n\n"
+			for _, stage := range stages {
+				prefix := "⏳ "
+				if stage.IsComplete {
+					prefix = "✅ "
+				} else if stage.IsActive {
+					prefix = "⚙️  "
+				}
+				statusView += prefix + stage.Name + "\n"
+			}
+
+			// Add elapsed time
+			elapsed := m.progress.GetElapsedTime()
+			statusView += fmt.Sprintf("\n⏱️  %ds elapsed", int(elapsed.Seconds()))
+		}
+
+		statusView += "\n\n" + SubtleStyle.Render("Press ESC to cancel")
+
 		return lipgloss.Place(
 			m.windowWidth, m.windowHeight,
 			lipgloss.Center, lipgloss.Center,
-			fmt.Sprintf("%s Analyzing %s...", m.spinner.View(), m.input),
+			statusView,
 		)
 	case stateDashboard:
 		return m.dashboard.View()
@@ -178,19 +214,36 @@ func (m MainModel) analyzeRepo(repoName string) tea.Cmd {
 			return fmt.Errorf("repository must be in owner/repo format")
 		}
 
+		tracker := NewProgressTracker()
+
+		// Stage 1: Fetch repository
 		client := github.NewClient()
 		repo, err := client.GetRepo(parts[0], parts[1])
 		if err != nil {
 			return err
 		}
+		tracker.NextStage()
 
+		// Stage 2: Analyze commits
 		commits, _ := client.GetCommits(parts[0], parts[1], 365)
-		contributors, _ := client.GetContributors(parts[0], parts[1])
-		languages, _ := client.GetLanguages(parts[0], parts[1])
+		tracker.NextStage()
 
+		// Stage 3: Analyze contributors
+		contributors, _ := client.GetContributors(parts[0], parts[1])
+		tracker.NextStage()
+
+		// Stage 4: Analyze languages
+		languages, _ := client.GetLanguages(parts[0], parts[1])
+		tracker.NextStage()
+
+		// Stage 5: Compute metrics
 		score := analyzer.CalculateHealth(repo, commits)
 		busFactor, busRisk := analyzer.BusFactor(contributors)
 		maturityScore, maturityLevel := analyzer.RepoMaturityScore(repo, len(commits), len(contributors), false)
+		tracker.NextStage()
+
+		// Mark complete
+		tracker.NextStage()
 
 		return AnalysisResult{
 			Repo:          repo,
