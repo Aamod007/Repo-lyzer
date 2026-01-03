@@ -54,11 +54,7 @@ func (m *TreeModel) updateVisibleList() {
 }
 
 func (m *TreeModel) addVisibleNodes(node *FileNode, depth int) {
-	if node == m.root {
-		m.visibleList = append(m.visibleList, node)
-	} else {
-		m.visibleList = append(m.visibleList, node)
-	}
+	m.visibleList = append(m.visibleList, node)
 
 	if node.Expanded && len(node.Children) > 0 {
 		for _, child := range node.Children {
@@ -192,8 +188,12 @@ func (m TreeModel) getNodeDepth(parent *FileNode, target *FileNode) int {
 
 // BuildFileTree creates a file tree from repository content
 func BuildFileTree(result AnalysisResult) *FileNode {
+	repoName := "repository"
+	if result.Repo != nil {
+		repoName = result.Repo.Name
+	}
 	root := &FileNode{
-		Name:     result.Repo.Name,
+		Name:     repoName,
 		Type:     "dir",
 		Path:     "/",
 		Children: []*FileNode{},
