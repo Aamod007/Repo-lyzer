@@ -238,6 +238,16 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.dashboard.BackToMenu = false
 			m.input = ""
 		}
+
+	case stateTree:
+		newTree, newCmd := m.tree.Update(msg)
+		m.tree = newTree.(TreeModel)
+		cmds = append(cmds, newCmd)
+
+		if m.tree.Done {
+			m.state = stateDashboard
+			m.tree.Done = false
+		}
 	}
 
 	return m, tea.Batch(cmds...)
@@ -285,18 +295,8 @@ func (m MainModel) View() string {
 			lipgloss.Center, lipgloss.Center,
 			statusView,
 		)
-	case stateCompareLoading:
-		loadMsg := fmt.Sprintf("📊 Comparing %s vs %s", m.compareInput1, m.compareInput2)
-		statusView := fmt.Sprintf("%s %s...", m.spinner.View(), loadMsg)
-		statusView += "\n\n" + SubtleStyle.Render("Press ESC to cancel")
-
-		return lipgloss.Place(
-			m.windowWidth, m.windowHeight,
-			lipgloss.Center, lipgloss.Center,
-			statusView,
-		)
-	case stateCompareResult:
-		return m.compareResultView()
+	case stateTree:
+		return m.tree.View()
 	case stateDashboard:
 		return m.dashboard.View()
 	}
