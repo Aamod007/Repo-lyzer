@@ -123,24 +123,39 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.menu = newMenu.(MenuModel)
 		cmds = append(cmds, newCmd)
 
-		if m.menu.SelectedOption == 0 && m.menu.Done { // Analyze
-			m.state = stateInput
-			m.menu.Done = false // Reset for back navigation
-		} else if m.menu.SelectedOption == 1 && m.menu.Done { // Compare
-			m.state = stateCompareInput
-			m.compareStep = 0
-			m.compareInput1 = ""
-			m.compareInput2 = ""
-			m.menu.Done = false
-		} else if m.menu.SelectedOption == 2 && m.menu.Done { // History
-			m.state = stateHistory
-			m.historyCursor = 0
-			// Load history
-			history, _ := LoadHistory()
-			m.history = history
-			m.menu.Done = false
-		} else if m.menu.SelectedOption == 3 && m.menu.Done { // Exit
-			return m, tea.Quit
+		if m.menu.Done {
+			switch m.menu.SelectedOption {
+			case 0: // Analyze
+				if m.menu.submenuType == "analyze" {
+					// Analysis type selection
+					analysisTypes := []string{"quick", "detailed", "custom"}
+					if m.menu.submenuCursor < len(analysisTypes) {
+						m.analysisType = analysisTypes[m.menu.submenuCursor]
+					}
+					m.state = stateInput
+				}
+				m.menu.Done = false
+			case 1: // Compare
+				m.state = stateCompareInput
+				m.compareStep = 0
+				m.compareInput1 = ""
+				m.compareInput2 = ""
+				m.menu.Done = false
+			case 2: // History
+				m.state = stateHistory
+				m.historyCursor = 0
+				history, _ := LoadHistory()
+				m.history = history
+				m.menu.Done = false
+			case 3: // Settings
+				// Settings would open a settings submenu
+				m.menu.Done = false
+			case 4: // Help
+				// Help would open a help submenu
+				m.menu.Done = false
+			case 5: // Exit
+				return m, tea.Quit
+			}
 		}
 
 	case stateInput:
