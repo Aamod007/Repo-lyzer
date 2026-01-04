@@ -8,7 +8,7 @@ import (
 	"github.com/agnivo988/Repo-lyzer/internal/github"
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/spinner"
-	"github.com/charmbracelet/bubbletea"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
 
@@ -44,7 +44,7 @@ type MainModel struct {
 	windowWidth   int
 	windowHeight  int
 	analysisType  string // quick, detailed, custom
-	appSettings    tea.LogOptionsSetter
+	appSettings   tea.LogOptionsSetter
 	compareResult *CompareResult // Holds comparison data
 	history       *History       // Analysis history
 	historyCursor int            // Current selection in history
@@ -56,15 +56,14 @@ func NewMainModel() MainModel {
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
 
 	return MainModel{
-		state:        stateMenu,
-		menu:         NewMenuModel(),
-		spinner:      s,
-		dashboard:    NewDashboardModel(),
-		tree:         NewTreeModel(nil),
-		appSettings:  nil, 
+		state:       stateMenu,
+		menu:        NewMenuModel(),
+		spinner:     s,
+		dashboard:   NewDashboardModel(),
+		tree:        NewTreeModel(nil),
+		appSettings: nil,
 	}
 }
-
 
 func (m MainModel) Init() tea.Cmd {
 	return m.spinner.Tick
@@ -148,10 +147,17 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case tea.KeyMsg:
 			switch msg.Type {
 			case tea.KeyEnter:
-				if m.input != "" {
+				cleanInput := sanitizeRepoInput(m.input)
+
+				if cleanInput != "" {
+					m.input = cleanInput
+					m.err = nil
 					m.state = stateLoading
-					cmds = append(cmds, m.analyzeRepo(m.input))
+					cmds = append(cmds, m.analyzeRepo(cleanInput))
+				} else {
+					m.err = fmt.Errorf("please enter a valid repository (owner/repo or GitHub URL)")
 				}
+
 			case tea.KeyBackspace:
 				if len(m.input) > 0 {
 					m.input = m.input[:len(m.input)-1]
@@ -184,13 +190,20 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			switch msg.Type {
 			case tea.KeyEnter:
 				if m.compareStep == 0 && m.compareInput1 != "" {
-					// Move to second repo input
+					// Sanitize first repo
+					m.compareInput1 = sanitizeRepoInput(m.compareInput1)
 					m.compareStep = 1
+
 				} else if m.compareStep == 1 && m.compareInput2 != "" {
-					// Both repos entered, start comparison
+					// Sanitize both repos before comparison
+					m.compareInput1 = sanitizeRepoInput(m.compareInput1)
+					m.compareInput2 = sanitizeRepoInput(m.compareInput2)
+
+					m.err = nil
 					m.state = stateCompareLoading
 					cmds = append(cmds, m.compareRepos(m.compareInput1, m.compareInput2))
 				}
+
 			case tea.KeyBackspace:
 				if m.compareStep == 0 && len(m.compareInput1) > 0 {
 					m.compareInput1 = m.compareInput1[:len(m.compareInput1)-1]
@@ -452,7 +465,7 @@ func (m MainModel) inputView() string {
 	inputContent :=
 		TitleStyle.Render("📥 ENTER REPOSITORY") + "\n\n" +
 			InputStyle.Render("> "+m.input) + "\n\n" +
-			SubtleStyle.Render("Format: owner/repo  •  Press Enter to run")
+			SubtleStyle.Render("Format: owner/repo or GitHub URL  •  Press Enter to analyze")
 
 	if m.err != nil {
 		inputContent += "\n\n" + ErrorStyle.Render(fmt.Sprintf("Error: %v", m.err))
@@ -704,6 +717,24 @@ func Run() error {
 	p := tea.NewProgram(NewMainModel(), tea.WithAltScreen())
 	_, err := p.Run()
 	return err
+}
+func sanitizeRepoInput(input string) string {
+	// Remove null bytes and trim spaces
+	clean := strings.ReplaceAll(input, "\x00", "")
+	clean = strings.TrimSpace(clean)
+
+	// Allow full GitHub URLs
+	if strings.Contains(clean, "github.com/") {
+		parts := strings.Split(clean, "github.com/")
+		if len(parts) == 2 {
+			clean = parts[1]
+		}
+	}
+
+	// Remove trailing slash if present
+	clean = strings.TrimSuffix(clean, "/")
+
+	return clean
 }
 
 func (m MainModel) historyView() string {
