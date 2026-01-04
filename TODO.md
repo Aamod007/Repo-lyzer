@@ -1,26 +1,18 @@
-# TODO: Fix Tree View Integration and Printing Issues
+# TODO: Address High-Priority Issues - Tree View Integration, Comparison Fixes, Analysis Printing Issues
 
 ## Tree View Integration
-- [ ] Add stateTree constant to app.go
-- [ ] Add tree TreeModel field to MainModel struct
-- [ ] Initialize tree model in NewMainModel
-- [ ] Add tree state handling in Update method
-- [ ] Add tree view in View method
-- [ ] Handle 'f' key in dashboard.go to switch to tree state
-- [ ] Update BuildFileTree to use actual repo file data from AnalysisResult
+- [x] Update BuildFileTree in internal/ui/tree.go to parse flat FileTree []github.TreeEntry into hierarchical FileNode tree
 
-## CLI Printing Options
-- [ ] Add CLI flags to analyze command (--repo, --langs, --activity, --health, --api, --recruiter, --all)
-- [ ] Modify analyze.go to conditionally print based on flags
-- [ ] Test all printing functions work correctly
+## Analysis Printing Issues
+- [x] Create new print function for file tree in internal/output/tree.go
+- [x] Update cmd/analyze.go to fetch file tree and add print call
 
 ## Comparison Fixes
-- [ ] Review compare.go for any issues
-- [ ] Fix any bugs in comparison logic
-- [ ] Ensure comparison works properly
+- [x] Modify cmd/compare.go to fetch languages for both repos
+- [x] Modify cmd/compare.go to fetch file tree for both repos
+- [x] Enhance comparison output to include languages and file tree summary
 
 ## Testing
-- [ ] Test tree navigation in UI
-- [ ] Test selective printing in CLI
-- [ ] Test comparison functionality
-- [ ] Verify all information prints correctly
+- [ ] Test analyze command with file tree printing
+- [ ] Test compare command with new data
+- [ ] Test tree view in TUI with real data

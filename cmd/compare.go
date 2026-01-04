@@ -40,8 +40,10 @@ var compareCmd = &cobra.Command{
 			return err
 		}
 
+		langs1, _ := client.GetLanguages(r1[0], r1[1])
 		commits1, _ := client.GetCommits(r1[0], r1[1], 14)
 		contributors1, _ := client.GetContributors(r1[0], r1[1])
+		fileTree1, _ := client.GetFileTree(r1[0], r1[1], repo1.DefaultBranch)
 		bus1, risk1 := analyzer.BusFactor(contributors1)
 
 		maturityScore1, maturityLevel1 :=
@@ -53,8 +55,10 @@ var compareCmd = &cobra.Command{
 			return err
 		}
 
+		langs2, _ := client.GetLanguages(r2[0], r2[1])
 		commits2, _ := client.GetCommits(r2[0], r2[1], 14)
 		contributors2, _ := client.GetContributors(r2[0], r2[1])
+		fileTree2, _ := client.GetFileTree(r2[0], r2[1], repo2.DefaultBranch)
 		bus2, risk2 := analyzer.BusFactor(contributors2)
 
 		maturityScore2, maturityLevel2 :=
@@ -114,5 +118,18 @@ var compareCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(compareCmd)
+}
+
+// countTreeStats counts files, directories, and total size from tree entries
+func countTreeStats(tree []github.TreeEntry) (files, dirs, totalSize int) {
+	for _, entry := range tree {
+		if entry.Type == "blob" {
+			files++
+			totalSize += entry.Size
+		} else if entry.Type == "tree" {
+			dirs++
+		}
+	}
+	return
 }
 
