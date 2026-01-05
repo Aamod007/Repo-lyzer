@@ -5,6 +5,14 @@
 **Repo-lyzer** is a modern, terminal-based CLI tool written in **Golang** that analyzes GitHub repositories and presents insights in a beautifully formatted, interactive dashboard. It is designed for developers, recruiters, and open-source enthusiasts to quickly evaluate a repository’s health, activity, and contributor statistics.
 
 ---
+## 👥 Who is Repo-lyzer for?
+
+- 👨‍💻 **Developers** evaluating open-source projects  
+- 🧑‍💼 **Recruiters** assessing repository health and activity  
+- 🌱 **Contributors** exploring project structure and engagement  
+
+---
+
 
 ## 🌟 Features
 
@@ -53,6 +61,23 @@ repo-analyzer/
 │ ├── analyzer/
 │ └── output/
 │
+├── docs/
+│ ├── DOCUMENTATION_INDEX.md
+│ ├── QUICK_REFERENCE.md
+│ ├── IMPLEMENTATION_DETAILS.md
+│ ├── ANALYZER_INTEGRATION.md
+│ ├── CHANGE_LOG.md
+│ ├── PHASE2_README.md
+│ ├── PHASE2_DOCUMENTATION_INDEX.md
+│ ├── PHASE2_QUICK_REFERENCE.md
+│ ├── PHASE2_COMPLETION.md
+│ ├── PHASE2_FINAL_SUMMARY.md
+│ ├── PHASE2_FILE_CHANGES.md
+│ ├── FEATURE_INVENTORY_PHASE2.md
+│ ├── UI_FIXES_SUMMARY.md
+│ ├── RESOLUTION_REPORT.md
+│ └── TODO.md
+│
 ├── config/ 
 ├── main.go 
 ├── go.mod 
@@ -69,6 +94,19 @@ repo-analyzer/
 
 ---
 
+## 📚 Documentation
+
+For detailed information about the project, please refer to the documentation in the `docs/` folder:
+
+- **[DOCUMENTATION_INDEX.md](docs/DOCUMENTATION_INDEX.md)** – Main index for all documentation
+- **[QUICK_REFERENCE.md](docs/QUICK_REFERENCE.md)** – Quick reference guide
+- **[IMPLEMENTATION_DETAILS.md](docs/IMPLEMENTATION_DETAILS.md)** – Technical implementation details
+- **[ANALYZER_INTEGRATION.md](docs/ANALYZER_INTEGRATION.md)** – Analyzer integration guide
+- **[CHANGE_LOG.md](docs/CHANGE_LOG.md)** – Changelog and version history
+- **[PHASE2_README.md](docs/PHASE2_README.md)** – Phase 2 development overview
+
+---
+
 ## 🚧 Challenges Faced
 
 - **Terminal layout:** Centering multiple sections with minimal gaps using Lipgloss and Bubble Tea.
@@ -79,7 +117,7 @@ repo-analyzer/
 
 ---
 
-## 🛠 Installation
+## 🛠 Installation (From Source)
 
 1. Clone the repo:
 
@@ -87,12 +125,60 @@ repo-analyzer/
 git clone https://github.com/agnivo988/Repo-lyzer.git
 cd Repo-lyzer
 ```
+---
 
-## License
-MIT License © 2026 Agniva Mukherjee
+## 🚀 Quick Start (For Contributors)
+
+If you want to run Repo-lyzer locally or contribute to the project, follow the steps below.
+
+### Prerequisites
+- Go **v1.20+**
+- Git
+- Internet connection (for GitHub API access)
+
+### Run Locally
+
+```bash
+go mod tidy
+go run main.go
+```
+This will launch the interactive Repo-lyzer terminal dashboard.
 
 ---
 
+## ▶️ Usage Examples
+
+Analyze a repository:
+```bash
+repo-lyzer analyze golang/go
+```
+**🔄 Compare two repositories**
+Repository comparison is available through the interactive menu.  
+Launch the application and select **Compare Repositories** from the dashboard.
+
+**📝 Export Analysis Results**
+Export functionality is available from within the interactive dashboard.  
+After analysis, choose the export option from the menu to save results.
+
+
+## 🔐 GitHub API Configuration (Optional)
+
+Repo-lyzer uses the GitHub REST API.
+To get higher rate limits and smoother analysis, you can provide a GitHub Personal Access Token.
+
+## ⚙️ Setup
+
+- 🔑 Generate a token from: 
+  [GitHub Personal Access Tokens](https://github.com/settings/tokens)
+
+- 🌍 Set it as an environment variable:
+```bash
+export GITHUB_TOKEN=your_token_here   # macOS/Linux
+setx GITHUB_TOKEN your_token_here     # Windows
+```
+
+ℹ️ If no token is provided, Repo-lyzer will use GitHub’s public rate limits.
+---
 
 ## How it looks
 <img src="https://res.cloudinary.com/dhyii4oiw/image/upload/v1767290545/Screenshot_2026-01-01_224310_c0hhr8.png" alt="This is the Opening Screen" width="auto" height="auto">
@@ -101,10 +187,9 @@ MIT License © 2026 Agniva Mukherjee
 <img src="https://res.cloudinary.com/dhyii4oiw/image/upload/v1767324721/Screenshot_2026-01-02_090104_dm7bgk.png" alt="" width="auto" height="auto">
 <img src="https://res.cloudinary.com/dhyii4oiw/image/upload/v1767324829/Screenshot_2026-01-02_090335_acms5i.png" alt="" width="auto" height="auto">
 
-
 ---
 
-## How to Install(For Users)??
+## Installation (For Users)
 1.Go to the terminal and run
 ```bash
 go install github.com/agnivo988/Repo-lyzer@v1.0.0
@@ -114,5 +199,9 @@ go install github.com/agnivo988/Repo-lyzer@v1.0.0
 ```bash
 repo-lyzer
 ```
+---
+
+## License
+MIT License © 2026 Agniva Mukherjee
 
 

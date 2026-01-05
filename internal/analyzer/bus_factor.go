@@ -1,7 +1,17 @@
+// Package analyzer provides functions for analyzing GitHub repository data.
+// It includes calculations for repository health, maturity, bus factor, and other metrics.
 package analyzer
 
 import "github.com/agnivo988/Repo-lyzer/internal/github"
 
+// BusFactor calculates the bus factor of a repository based on contributor commit distribution.
+// The bus factor indicates how risky it is if key contributors leave the project.
+// It returns a score from 1-3 and a risk level string.
+// Parameters:
+//   - contributors: Slice of repository contributors with their commit counts
+// Returns:
+//   - int: Risk score (1=High Risk, 2=Medium Risk, 3=Low Risk)
+//   - string: Risk level description
 func BusFactor(contributors []github.Contributor) (int, string) {
 	if len(contributors) == 0 {
 		return 0, "Unknown"

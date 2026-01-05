@@ -15,6 +15,7 @@ type AnalysisResult struct {
 	MaturityLevel string
 }
 
+feat/empty-state-error-handling-58
 type UIState int
 
 const (
@@ -28,4 +29,10 @@ type UIMessage struct {
 	Title       string
 	Description string
 	Retryable   bool
+
+// CompareResult holds analysis data for two repositories
+type CompareResult struct {
+	Repo1 AnalysisResult
+	Repo2 AnalysisResult
+
 }

@@ -1,3 +1,5 @@
+// Package cmd provides command-line interface commands for the Repo-lyzer application.
+// It includes commands for analyzing repositories, comparing repositories, and running the interactive menu.
 package cmd
 
 import (
@@ -10,6 +12,13 @@ import (
 	"github.com/agnivo988/Repo-lyzer/internal/output"
 )
 
+// RunAnalyze executes the analyze command for a given GitHub repository.
+// It takes the owner and repository name, performs comprehensive analysis including
+// repository info, languages, commits, contributors, and generates various reports.
+// Parameters:
+//   - owner: GitHub username or organization name
+//   - repo: Repository name
+// Returns an error if the analysis fails.
 func RunAnalyze(owner, repo string) error {
 	args := []string{owner + "/" + repo}
 	analyzeCmd.SetArgs(args)
@@ -33,8 +42,20 @@ var analyzeCmd = &cobra.Command{
 			return err
 		}
 
-		langs, _ := client.GetLanguages(parts[0], parts[1])
-		commits, _ := client.GetCommits(parts[0], parts[1], 365)
+		langs, err := client.GetLanguages(parts[0], parts[1])
+		if err != nil {
+			return fmt.Errorf("failed to get languages: %w", err)
+		}
+
+		commits, err := client.GetCommits(parts[0], parts[1], 365)
+		if err != nil {
+			return fmt.Errorf("failed to get commits: %w", err)
+		}
+
+		_, err = client.GetFileTree(parts[0], parts[1], repo.DefaultBranch)
+		if err != nil {
+			return fmt.Errorf("failed to get file tree: %w", err)
+		}
          
 		
 		score := analyzer.CalculateHealth(repo, commits)
@@ -75,8 +96,4 @@ var analyzeCmd = &cobra.Command{
 
 		return nil
 	},
-}
-
-func init() {
-	rootCmd.AddCommand(analyzeCmd)
 }

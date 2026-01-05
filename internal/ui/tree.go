@@ -2,7 +2,9 @@ package ui
 
 import (
 	"fmt"
+	"strings"
 
+	"github.com/agnivo988/Repo-lyzer/internal/github"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -19,17 +21,20 @@ type FileNode struct {
 
 // TreeModel represents the file tree view
 type TreeModel struct {
-	root        *FileNode
-	cursor      int
-	visibleList []*FileNode
-	width       int
-	height      int
-	Done        bool
+	root         *FileNode
+	cursor       int
+	visibleList  []*FileNode
+	width        int
+	height       int
+	Done         bool
 	SelectedPath string
 }
 
-func NewTreeModel(root *FileNode) TreeModel {
-	if root == nil {
+func NewTreeModel(result *AnalysisResult) TreeModel {
+	var root *FileNode
+	if result != nil {
+		root = BuildFileTree(*result)
+	} else {
 		root = &FileNode{
 			Name:     "repository",
 			Type:     "dir",
@@ -51,11 +56,7 @@ func (m *TreeModel) updateVisibleList() {
 }
 
 func (m *TreeModel) addVisibleNodes(node *FileNode, depth int) {
-	if node == m.root {
-		m.visibleList = append(m.visibleList, node)
-	} else {
-		m.visibleList = append(m.visibleList, node)
-	}
+	m.visibleList = append(m.visibleList, node)
 
 	if node.Expanded && len(node.Children) > 0 {
 		for _, child := range node.Children {
@@ -100,8 +101,11 @@ func (m TreeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case "enter":
 			if m.cursor < len(m.visibleList) {
-				m.SelectedPath = m.visibleList[m.cursor].Path
-				m.Done = true
+				node := m.visibleList[m.cursor]
+				if node.Type == "file" {
+					m.SelectedPath = node.Path
+					m.Done = true
+				}
 			}
 		case "esc":
 			m.Done = true
@@ -119,7 +123,7 @@ func (m TreeModel) View() string {
 	content := TitleStyle.Render("📁 REPOSITORY FILE TREE") + "\n\n"
 
 	// Display visible nodes
-	startIdx := m.cursor - (m.height - 5) / 2
+	startIdx := m.cursor - (m.height-5)/2
 	if startIdx < 0 {
 		startIdx = 0
 	}
@@ -151,7 +155,7 @@ func (m TreeModel) View() string {
 		content += style.Render(line) + "\n"
 	}
 
-	footer := SubtleStyle.Render("↑↓ navigate • ← → expand/collapse • Enter select • ESC back")
+	footer := SubtleStyle.Render("↑↓ navigate • ← → expand/collapse • Enter edit file • ESC back")
 	content += "\n" + footer
 
 	return lipgloss.Place(
@@ -188,35 +192,61 @@ func (m TreeModel) getNodeDepth(parent *FileNode, target *FileNode) int {
 }
 
 // BuildFileTree creates a file tree from repository content
-func BuildFileTree(fileCount int, topFiles []string) *FileNode {
+func BuildFileTree(result AnalysisResult) *FileNode {
+	repoName := "repository"
+	if result.Repo != nil {
+		repoName = result.Repo.Name
+	}
 	root := &FileNode{
-		Name:     "repository",
+		Name:     repoName,
 		Type:     "dir",
 		Path:     "/",
 		Children: []*FileNode{},
 	}
 
-	// Add directories
-	dirs := []string{"src", "test", "docs", "config", "scripts", "build"}
-	for _, dir := range dirs {
-		root.Children = append(root.Children, &FileNode{
-			Name:     dir,
-			Type:     "dir",
-			Path:     "/" + dir,
-			Children: []*FileNode{},
-		})
-	}
-
-	// Add sample files in root
-	sampleFiles := []string{"README.md", "LICENSE", "go.mod", "go.sum", ".gitignore"}
-	for _, file := range sampleFiles {
-		root.Children = append(root.Children, &FileNode{
-			Name: file,
-			Type: "file",
-			Path: "/" + file,
-			Size: 1024,
-		})
+	// Build tree from actual FileTree data
+	for _, entry := range result.FileTree {
+		addEntryToTree(root, entry)
 	}
 
 	return root
+}
+
+// addEntryToTree recursively adds a TreeEntry to the FileNode tree
+func addEntryToTree(root *FileNode, entry github.TreeEntry) {
+	parts := strings.Split(strings.Trim(entry.Path, "/"), "/")
+	current := root
+
+	for i, part := range parts {
+		isLast := i == len(parts)-1
+		found := false
+
+		// Check if node already exists
+		for _, child := range current.Children {
+			if child.Name == part {
+				current = child
+				found = true
+				break
+			}
+		}
+
+		// Create new node if not found
+		if !found {
+			nodeType := "file"
+			if !isLast || entry.Type == "tree" {
+				nodeType = "dir"
+			}
+			newNode := &FileNode{
+				Name:     part,
+				Type:     nodeType,
+				Path:     "/" + strings.Join(parts[:i+1], "/"),
+				Children: []*FileNode{},
+			}
+			if isLast {
+				newNode.Size = int64(entry.Size)
+			}
+			current.Children = append(current.Children, newNode)
+			current = newNode
+		}
+	}
 }

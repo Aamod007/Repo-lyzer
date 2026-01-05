@@ -17,6 +17,7 @@ type AnalyzerDataBridge struct {
 	maturityScore int
 	maturityLevel string
 	fileTree      *FileNode
+	cache         map[string]interface{}
 }
 
 // NEW: Empty-state detection helper
@@ -39,6 +40,10 @@ func NewAnalyzerDataBridge(result AnalysisResult) *AnalyzerDataBridge {
 		busRisk:       result.BusRisk,
 		maturityScore: result.MaturityScore,
 		maturityLevel: result.MaturityLevel,
+ feat/empty-state-error-handling-58
+
+		fileTree:      BuildFileTree(result),
+
 	}
 
 	// NEW: Avoid building tree if no commits exist
@@ -48,6 +53,7 @@ func NewAnalyzerDataBridge(result AnalysisResult) *AnalyzerDataBridge {
 
 	return bridge
 }
+
 
 // GetHealthMetrics returns health-related metrics
 func (b *AnalyzerDataBridge) GetHealthMetrics() map[string]interface{} {

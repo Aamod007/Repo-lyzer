@@ -1,18 +1,27 @@
+// Package cmd provides command-line interface commands for the Repo-lyzer application.
+// It includes commands for analyzing repositories, comparing repositories, and running the interactive menu.
 package cmd
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 
-	"os"
-
 	"github.com/agnivo988/Repo-lyzer/internal/analyzer"
 	"github.com/agnivo988/Repo-lyzer/internal/github"
 )
 
+// RunCompare executes the compare command for two GitHub repositories.
+// It takes two repository identifiers in owner/repo format, analyzes both repositories,
+// and displays a comparison table with metrics like stars, forks, commits, contributors,
+// bus factor, and maturity scores.
+// Parameters:
+//   - r1: First repository in owner/repo format
+//   - r2: Second repository in owner/repo format
+// Returns an error if the comparison fails.
 func RunCompare(r1, r2 string) error {
 	compareCmd.SetArgs([]string{r1, r2})
 	return compareCmd.Execute()
@@ -40,8 +49,10 @@ var compareCmd = &cobra.Command{
 			return err
 		}
 
+		_, _ = client.GetLanguages(r1[0], r1[1])
 		commits1, _ := client.GetCommits(r1[0], r1[1], 14)
 		contributors1, _ := client.GetContributors(r1[0], r1[1])
+		_, _ = client.GetFileTree(r1[0], r1[1], repo1.DefaultBranch)
 		bus1, risk1 := analyzer.BusFactor(contributors1)
 
 		maturityScore1, maturityLevel1 :=
@@ -53,8 +64,10 @@ var compareCmd = &cobra.Command{
 			return err
 		}
 
+		_, _ = client.GetLanguages(r2[0], r2[1])
 		commits2, _ := client.GetCommits(r2[0], r2[1], 14)
 		contributors2, _ := client.GetContributors(r2[0], r2[1])
+		_, _ = client.GetFileTree(r2[0], r2[1], repo2.DefaultBranch)
 		bus2, risk2 := analyzer.BusFactor(contributors2)
 
 		maturityScore2, maturityLevel2 :=
@@ -114,5 +127,18 @@ var compareCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(compareCmd)
+}
+
+// countTreeStats counts files, directories, and total size from tree entries
+func countTreeStats(tree []github.TreeEntry) (files, dirs, totalSize int) {
+	for _, entry := range tree {
+		if entry.Type == "blob" {
+			files++
+			totalSize += entry.Size
+		} else if entry.Type == "tree" {
+			dirs++
+		}
+	}
+	return
 }
 
