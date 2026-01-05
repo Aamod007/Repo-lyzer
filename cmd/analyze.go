@@ -52,7 +52,7 @@ var analyzeCmd = &cobra.Command{
 			return fmt.Errorf("failed to get commits: %w", err)
 		}
 
-		fileTree, err := client.GetFileTree(parts[0], parts[1], repo.DefaultBranch)
+		_, err = client.GetFileTree(parts[0], parts[1], repo.DefaultBranch)
 		if err != nil {
 			return fmt.Errorf("failed to get file tree: %w", err)
 		}
@@ -96,8 +96,4 @@ var analyzeCmd = &cobra.Command{
 
 		return nil
 	},
-}
-
-func init() {
-	rootCmd.AddCommand(analyzeCmd)
 }

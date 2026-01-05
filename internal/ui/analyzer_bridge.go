@@ -32,9 +32,10 @@ func NewAnalyzerDataBridge(result AnalysisResult) *AnalyzerDataBridge {
 		busRisk:       result.BusRisk,
 		maturityScore: result.MaturityScore,
 		maturityLevel: result.MaturityLevel,
-		fileTree:      BuildFileTree(len(result.Commits), []string{}),
+		fileTree:      BuildFileTree(result),
 	}
 }
+
 
 // GetHealthMetrics returns health-related metrics
 func (b *AnalyzerDataBridge) GetHealthMetrics() map[string]interface{} {
