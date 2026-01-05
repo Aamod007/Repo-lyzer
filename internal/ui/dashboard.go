@@ -167,6 +167,14 @@ func (m DashboardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.currentView--
 				}
 			}
+
+		case "t":
+			// Toggle theme
+			theme := CycleTheme()
+			m.statusMsg = fmt.Sprintf("Theme: %s", theme.Name)
+			return m, tea.Tick(2*time.Second, func(time.Time) tea.Msg {
+				return "clear_status"
+			})
 		}
 	}
 

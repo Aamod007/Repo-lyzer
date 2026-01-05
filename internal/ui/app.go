@@ -2,6 +2,9 @@ package ui
 
 import (
 	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/agnivo988/Repo-lyzer/internal/analyzer"
@@ -27,6 +30,8 @@ const (
 	stateCompareInput
 	stateCompareLoading
 	stateCompareResult
+	stateCloneInput
+	stateCloning
 )
 
 type MainModel struct {
@@ -156,7 +161,11 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				history, _ := LoadHistory()
 				m.history = history
 				m.menu.Done = false
-			case 3: // Settings
+			case 3: // Clone Repository
+				m.state = stateCloneInput
+				m.input = ""
+				m.menu.Done = false
+			case 4: // Settings
 				if m.menu.submenuType == "settings" {
 					// Settings option selection
 					settingsOptions := []string{"theme", "export", "token", "reset"}
@@ -166,7 +175,7 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.state = stateSettings
 				}
 				m.menu.Done = false
-			case 4: // Help
+			case 5: // Help
 				if m.menu.submenuType == "help" {
 					// Help option selection
 					helpOptions := []string{"shortcuts", "getting-started", "features", "troubleshooting"}
@@ -176,7 +185,7 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.state = stateHelp
 				}
 				m.menu.Done = false
-			case 5: // Exit
+			case 6: // Exit
 				return m, tea.Quit
 			}
 		}
@@ -426,6 +435,54 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			switch msg.String() {
 			case "q", "esc":
 				m.state = stateMenu
+			case "t":
+				// Cycle through themes
+				theme := CycleTheme()
+				m.err = fmt.Errorf("Theme changed to: %s", theme.Name)
+			case "1", "2", "3", "4", "5", "6", "7":
+				// Select theme by number
+				idx := int(msg.String()[0] - '1')
+				if idx >= 0 && idx < len(AvailableThemes) {
+					theme := SetThemeByIndex(idx)
+					m.err = fmt.Errorf("Theme: %s", theme.Name)
+				}
+			}
+		}
+
+	case stateCloneInput:
+		switch msg := msg.(type) {
+		case tea.KeyMsg:
+			switch msg.String() {
+			case "enter":
+				if m.input != "" {
+					m.state = stateCloning
+					cmds = append(cmds, m.cloneRepo(m.input))
+				}
+			case "esc":
+				m.state = stateMenu
+				m.input = ""
+			case "backspace":
+				if len(m.input) > 0 {
+					m.input = m.input[:len(m.input)-1]
+				}
+			case "ctrl+u":
+				m.input = ""
+			default:
+				if len(msg.String()) == 1 {
+					m.input += msg.String()
+				}
+			}
+		}
+
+	case stateCloning:
+		if result, ok := msg.(cloneResult); ok {
+			if result.err != nil {
+				m.err = result.err
+				m.state = stateCloneInput
+			} else {
+				m.err = fmt.Errorf("✓ Cloned to: %s", result.path)
+				m.state = stateMenu
+				m.input = ""
 			}
 		}
 
@@ -490,6 +547,10 @@ func (m MainModel) View() string {
 		return m.compareInputView()
 	case stateHistory:
 		return m.historyView()
+	case stateCloneInput:
+		return m.cloneInputView()
+	case stateCloning:
+		return m.cloningView()
 	case stateLoading:
 		loadMsg := fmt.Sprintf("📊 Analyzing %s", m.input)
 		if m.analysisType != "" {
@@ -573,6 +634,48 @@ func (m MainModel) inputView() string {
 		lipgloss.Center,
 		box,
 	)
+}
+
+// cloneResult is the result of a clone operation
+type cloneResult struct {
+	err  error
+	path string
+}
+
+// cloneRepo clones a repository to the Desktop folder
+func (m MainModel) cloneRepo(repoName string) tea.Cmd {
+	return func() tea.Msg {
+		parts := strings.Split(repoName, "/")
+		if len(parts) != 2 {
+			return cloneResult{err: fmt.Errorf("repository must be in owner/repo format")}
+		}
+
+		// Get Desktop path
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return cloneResult{err: err}
+		}
+		desktopPath := filepath.Join(home, "Desktop")
+		clonePath := filepath.Join(desktopPath, parts[1])
+
+		// Check if already exists
+		if _, err := os.Stat(clonePath); err == nil {
+			return cloneResult{err: fmt.Errorf("folder already exists: %s", clonePath)}
+		}
+
+		// Clone the repository
+		repoURL := fmt.Sprintf("https://github.com/%s/%s.git", parts[0], parts[1])
+		cmd := exec.Command("git", "clone", repoURL, clonePath)
+		
+		if err := cmd.Run(); err != nil {
+			return cloneResult{err: fmt.Errorf("clone failed: %w", err)}
+		}
+
+		// Open file manager to show the cloned folder
+		openFileManager(clonePath)
+
+		return cloneResult{path: clonePath}
+	}
 }
 
 func (m MainModel) analyzeRepo(repoName string) tea.Cmd {
@@ -922,6 +1025,66 @@ func (m MainModel) historyView() string {
 	)
 }
 
+func (m MainModel) cloneInputView() string {
+	header := TitleStyle.Render("📥 CLONE REPOSITORY")
+
+	inputContent := fmt.Sprintf(
+		"Enter repository to clone (owner/repo):\n\n> %s█\n\n"+
+			"The repository will be cloned to your Desktop folder.",
+		m.input,
+	)
+
+	var errMsg string
+	if m.err != nil {
+		errMsg = "\n" + ErrorStyle.Render(m.err.Error())
+	}
+
+	footer := SubtleStyle.Render("Enter: clone • ESC: back • Ctrl+U: clear")
+
+	content := lipgloss.JoinVertical(
+		lipgloss.Left,
+		header,
+		BoxStyle.Render(inputContent),
+		errMsg,
+		footer,
+	)
+
+	if m.windowWidth == 0 {
+		return content
+	}
+
+	return lipgloss.Place(
+		m.windowWidth,
+		m.windowHeight,
+		lipgloss.Center,
+		lipgloss.Center,
+		content,
+	)
+}
+
+func (m MainModel) cloningView() string {
+	header := TitleStyle.Render("📥 CLONING REPOSITORY")
+
+	content := fmt.Sprintf(
+		"%s Cloning %s to Desktop...\n\n"+
+			"Please wait while the repository is being cloned.",
+		m.spinner.View(),
+		m.input,
+	)
+
+	return lipgloss.Place(
+		m.windowWidth,
+		m.windowHeight,
+		lipgloss.Center,
+		lipgloss.Center,
+		lipgloss.JoinVertical(
+			lipgloss.Left,
+			header,
+			BoxStyle.Render(content),
+		),
+	)
+}
+
 func (m MainModel) helpView() string {
 	var title string
 	var content string
@@ -1064,22 +1227,28 @@ func (m MainModel) settingsView() string {
 	switch m.settingsOption {
 	case "theme":
 		title = "🎨 Theme Settings"
-		content = `
-Theme customization options:
-
-Current theme: Default
+		
+		// Build theme list with current indicator
+		themeList := ""
+		for i, theme := range AvailableThemes {
+			indicator := "  "
+			if i == CurrentThemeIndex {
+				indicator = "▶ "
+			}
+			themeList += fmt.Sprintf("  %s[%d] %s\n", indicator, i+1, theme.Name)
+		}
+		
+		content = fmt.Sprintf(`
+Current theme: %s
 
 Available themes:
-  • Default (Dark)
-  • Light
-  • High Contrast
+%s
+Keybindings:
+  • Press 1-7 to select a theme
+  • Press 't' to cycle through themes
 
-To change theme:
-  1. Edit the theme configuration
-  2. Restart the application
-
-Note: Theme changes require application restart.
-`
+Theme changes are applied immediately!
+`, CurrentTheme.Name, themeList)
 	case "export":
 		title = "📤 Export Options"
 		content = `

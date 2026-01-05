@@ -31,6 +31,7 @@ func NewMenuModel() MenuModel {
 			"📊 Analyze Repository",
 			"🔄 Compare Repositories",
 			"📜 View History",
+			"📥 Clone Repository",
 			"⚙️ Settings",
 			"❓ Help",
 			"🚪 Exit",
@@ -111,7 +112,10 @@ func (m *MenuModel) enterSubmenu() {
 	case 2: // View History
 		m.SelectedOption = 2
 		m.Done = true
-	case 3: // Settings
+	case 3: // Clone Repository
+		m.SelectedOption = 3
+		m.Done = true
+	case 4: // Settings
 		m.submenuType = "settings"
 		m.submenuChoices = []string{
 			"Theme Settings",
@@ -121,7 +125,7 @@ func (m *MenuModel) enterSubmenu() {
 		}
 		m.inSubmenu = true
 		m.submenuCursor = 0
-	case 4: // Help
+	case 5: // Help
 		m.submenuType = "help"
 		m.submenuChoices = []string{
 			"Keyboard Shortcuts",
@@ -131,8 +135,8 @@ func (m *MenuModel) enterSubmenu() {
 		}
 		m.inSubmenu = true
 		m.submenuCursor = 0
-	case 5: // Exit
-		m.SelectedOption = 5
+	case 6: // Exit
+		m.SelectedOption = 6
 		m.Done = true
 	}
 }
