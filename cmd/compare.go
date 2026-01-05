@@ -1,3 +1,5 @@
+// Package cmd provides command-line interface commands for the Repo-lyzer application.
+// It includes commands for analyzing repositories, comparing repositories, and running the interactive menu.
 package cmd
 
 import (
@@ -13,6 +15,14 @@ import (
 	"github.com/agnivo988/Repo-lyzer/internal/github"
 )
 
+// RunCompare executes the compare command for two GitHub repositories.
+// It takes two repository identifiers in owner/repo format, analyzes both repositories,
+// and displays a comparison table with metrics like stars, forks, commits, contributors,
+// bus factor, and maturity scores.
+// Parameters:
+//   - r1: First repository in owner/repo format
+//   - r2: Second repository in owner/repo format
+// Returns an error if the comparison fails.
 func RunCompare(r1, r2 string) error {
 	compareCmd.SetArgs([]string{r1, r2})
 	return compareCmd.Execute()

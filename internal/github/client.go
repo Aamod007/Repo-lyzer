@@ -19,6 +19,12 @@ func NewClient() *Client {
 	}
 }
 
+// get performs a GET request to the GitHub API and decodes the JSON response.
+// It handles authentication using the client's token if available.
+// Parameters:
+//   - url: The GitHub API endpoint URL
+//   - target: Pointer to struct where the JSON response will be decoded
+// Returns an error if the request fails or the response cannot be decoded.
 func (c *Client) get(url string, target interface{}) error {
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -39,9 +45,9 @@ func (c *Client) get(url string, target interface{}) error {
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf(
-	    "GitHub API error: %s (tip: set GITHUB_TOKEN env variable)",
-	       resp.Status,
-)
+			"GitHub API error: %s (tip: set GITHUB_TOKEN env variable)",
+			resp.Status,
+		)
 	}
 
 	return json.NewDecoder(resp.Body).Decode(target)
