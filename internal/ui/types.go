@@ -3,6 +3,7 @@ package ui
 import (
 	"time"
 
+	"github.com/agnivo988/Repo-lyzer/internal/analyzer"
 	"github.com/agnivo988/Repo-lyzer/internal/github"
 )
 
@@ -17,6 +18,7 @@ type AnalysisResult struct {
 	BusRisk       string
 	MaturityScore int
 	MaturityLevel string
+	Dependencies  *analyzer.DependencyAnalysis
 }
 
 // CachedAnalysisResult wraps AnalysisResult with cache metadata
