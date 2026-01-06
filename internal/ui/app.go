@@ -797,6 +797,9 @@ func (m MainModel) analyzeRepo(repoName string) tea.Cmd {
 		score := analyzer.CalculateHealth(repo, commits)
 		busFactor, busRisk := analyzer.BusFactor(contributors)
 		maturityScore, maturityLevel := analyzer.RepoMaturityScore(repo, len(commits), len(contributors), false)
+		
+		// Stage 6: Analyze dependencies
+		deps, _ := analyzer.AnalyzeDependencies(client, parts[0], parts[1], repo.DefaultBranch, fileTree)
 		tracker.NextStage()
 
 		// Mark complete
@@ -813,6 +816,7 @@ func (m MainModel) analyzeRepo(repoName string) tea.Cmd {
 			BusRisk:       busRisk,
 			MaturityScore: maturityScore,
 			MaturityLevel: maturityLevel,
+			Dependencies:  deps,
 		}
 
 		// Save to cache
