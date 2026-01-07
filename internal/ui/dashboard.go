@@ -21,6 +21,7 @@ const (
 	viewActivity
 	viewContributors
 	viewContributorInsights
+	viewCodeQuality
 	viewRecruiter
 	viewAPIStatus
 )
@@ -156,10 +157,14 @@ func (m DashboardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.showHelp = false
 			m.showExport = false
 		case "7":
-			m.currentView = viewRecruiter
+			m.currentView = viewCodeQuality
 			m.showHelp = false
 			m.showExport = false
 		case "8":
+			m.currentView = viewRecruiter
+			m.showHelp = false
+			m.showExport = false
+		case "9":
 			m.currentView = viewAPIStatus
 			m.showHelp = false
 			m.showExport = false
@@ -216,6 +221,8 @@ func (m DashboardModel) View() string {
 		content = m.contributorsView()
 	case viewContributorInsights:
 		content = m.contributorInsightsView()
+	case viewCodeQuality:
+		content = m.codeQualityView()
 	case viewRecruiter:
 		content = m.recruiterView()
 	case viewAPIStatus:
@@ -237,7 +244,7 @@ func (m DashboardModel) View() string {
 
 	// Navigation tabs
 	tabs := m.renderTabs()
-	footer := SubtleStyle.Render("←→/hl: switch view • 1-8: jump to view • e: export • f: file tree • ?: help • q: back")
+	footer := SubtleStyle.Render("←→/hl: switch view • 1-9: jump to view • e: export • f: file tree • ?: help • q: back")
 
 	fullContent := lipgloss.JoinVertical(
 		lipgloss.Left,
@@ -260,7 +267,7 @@ func (m DashboardModel) View() string {
 }
 
 func (m DashboardModel) renderTabs() string {
-	views := []string{"Overview", "Repo", "Languages", "Activity", "Contributors", "Insights", "Recruiter", "API"}
+	views := []string{"Overview", "Repo", "Languages", "Activity", "Contributors", "Insights", "Quality", "Recruiter", "API"}
 	var tabs []string
 
 	for i, name := range views {
@@ -499,6 +506,125 @@ func (m DashboardModel) contributorInsightsView() string {
 	return lipgloss.JoinVertical(lipgloss.Left, header, BoxStyle.Render(content))
 }
 
+func (m DashboardModel) codeQualityView() string {
+	header := TitleStyle.Render("📊 Code Quality Metrics")
+
+	quality := m.data.CodeQuality
+	if quality == nil {
+		// Generate on the fly if not pre-computed
+		quality = analyzer.AnalyzeCodeQuality(m.data.Repo, m.data.FileTree, m.data.Languages)
+	}
+
+	if quality.Grade == "N/A" {
+		return lipgloss.JoinVertical(lipgloss.Left, header, BoxStyle.Render("No file tree data available for analysis"))
+	}
+
+	// Grade and overall score
+	gradeColor := getGradeColor(quality.Grade)
+	overview := fmt.Sprintf(
+		"🎯 Overall Score: %d/100  Grade: %s\n\n"+
+			"📊 Score Breakdown:\n"+
+			"   Documentation: %s %d/100\n"+
+			"   Testing:       %s %d/100\n"+
+			"   Structure:     %s %d/100\n"+
+			"   Maintenance:   %s %d/100",
+		quality.OverallScore,
+		gradeColor(quality.Grade),
+		getScoreBar(quality.DocumentationScore), quality.DocumentationScore,
+		getScoreBar(quality.TestingScore), quality.TestingScore,
+		getScoreBar(quality.StructureScore), quality.StructureScore,
+		getScoreBar(quality.MaintenanceScore), quality.MaintenanceScore,
+	)
+
+	// Project files checklist
+	checklist := "\n\n📁 Project Files:\n"
+	checklist += fmt.Sprintf("   %s README\n", checkMark(quality.HasReadme))
+	checklist += fmt.Sprintf("   %s LICENSE\n", checkMark(quality.HasLicense))
+	checklist += fmt.Sprintf("   %s CONTRIBUTING\n", checkMark(quality.HasContributing))
+	checklist += fmt.Sprintf("   %s CHANGELOG\n", checkMark(quality.HasChangelog))
+	checklist += fmt.Sprintf("   %s .gitignore\n", checkMark(quality.HasGitignore))
+	checklist += fmt.Sprintf("   %s CI/CD\n", checkMark(quality.HasCI))
+	checklist += fmt.Sprintf("   %s Tests\n", checkMark(quality.HasTests))
+
+	// File statistics
+	stats := fmt.Sprintf(
+		"\n\n📈 File Statistics:\n"+
+			"   Total Files: %d\n"+
+			"   Source Files: %d\n"+
+			"   Test Files: %d\n"+
+			"   Test Ratio: %.1f%%",
+		quality.FileStats.TotalFiles,
+		quality.FileStats.SourceFiles,
+		quality.FileStats.TestFiles,
+		quality.FileStats.TestRatio*100,
+	)
+
+	// CI/Test frameworks
+	frameworks := ""
+	if len(quality.CIProviders) > 0 {
+		frameworks += fmt.Sprintf("\n\n🔄 CI: %s", strings.Join(quality.CIProviders, ", "))
+	}
+	if len(quality.TestFrameworks) > 0 {
+		frameworks += fmt.Sprintf("\n🧪 Tests: %s", strings.Join(quality.TestFrameworks, ", "))
+	}
+
+	// Code smells
+	smells := ""
+	if len(quality.CodeSmells) > 0 {
+		smells = "\n\n⚠️ Issues Found:\n"
+		for _, smell := range quality.CodeSmells {
+			icon := "⚪"
+			if smell.Severity == "High" {
+				icon = "🔴"
+			} else if smell.Severity == "Medium" {
+				icon = "🟡"
+			}
+			smells += fmt.Sprintf("   %s %s\n", icon, smell.Description)
+		}
+	}
+
+	// Recommendations
+	recs := "\n\n💡 Recommendations:\n"
+	for _, rec := range quality.Recommendations {
+		recs += fmt.Sprintf("   %s\n", rec)
+	}
+
+	content := overview + checklist + stats + frameworks + smells + recs
+
+	return lipgloss.JoinVertical(lipgloss.Left, header, BoxStyle.Render(content))
+}
+
+// Helper functions for code quality view
+func getGradeColor(grade string) func(string) string {
+	return func(g string) string {
+		switch grade {
+		case "A":
+			return "🟢 " + g
+		case "B":
+			return "🟢 " + g
+		case "C":
+			return "🟡 " + g
+		case "D":
+			return "🟠 " + g
+		default:
+			return "🔴 " + g
+		}
+	}
+}
+
+func getScoreBar(score int) string {
+	filled := score / 10
+	empty := 10 - filled
+	return "[" + strings.Repeat("█", filled) + strings.Repeat("░", empty) + "]"
+}
+
+func checkMark(has bool) string {
+	if has {
+		return "✅"
+	}
+	return "❌"
+}
+
 func (m DashboardModel) recruiterView() string {
 	header := TitleStyle.Render("👔 Recruiter Summary")
 
@@ -542,7 +668,7 @@ func (m DashboardModel) helpView() string {
 	help := `
 Dashboard Navigation:
   ←/→ or h/l    Switch between views
-  1-8           Jump to specific view
+  1-9           Jump to specific view
   
 Views:
   1  Overview     - Health, Bus Factor, Maturity
@@ -551,8 +677,9 @@ Views:
   4  Activity     - Commit activity chart
   5  Contributors - Top contributors list
   6  Insights     - Detailed contributor insights
-  7  Recruiter    - Summary for recruiters
-  8  API Status   - GitHub API rate limits
+  7  Quality      - Code quality metrics
+  8  Recruiter    - Summary for recruiters
+  9  API Status   - GitHub API rate limits
 
 Actions:
   e             Toggle export menu
