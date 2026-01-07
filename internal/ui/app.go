@@ -29,6 +29,7 @@ const (
 	stateSettings
 	stateHelp
 	stateHistory
+	stateFavorites
 	stateCompareInput
 	stateCompareLoading
 	stateCompareResult
@@ -37,30 +38,32 @@ const (
 )
 
 type MainModel struct {
-	state          sessionState
-	menu           MenuModel
-	input          string // Repository input
-	compareInput1  string // First repo for comparison
-	compareInput2  string // Second repo for comparison
-	compareStep    int    // 0 = entering first repo, 1 = entering second repo
-	spinner        spinner.Model
-	dashboard      DashboardModel
-	tree           TreeModel
-	fileEdit       FileEditModel
-	help           help.Model
-	progress       *ProgressTracker
-	err            error
-	windowWidth    int
-	windowHeight   int
-	analysisType   string // quick, detailed, custom
-	appSettings    tea.LogOptionsSetter
-	compareResult  *CompareResult // Holds comparison data
-	history        *History       // Analysis history
-	historyCursor  int            // Current selection in history
-	helpContent    string         // Content for help screen
-	settingsOption string         // Selected settings option
-	cache          *cache.Cache   // Offline cache for analysis results
-	cacheStatus    string         // Cache status: "fresh", "cached", "expired", ""
+	state           sessionState
+	menu            MenuModel
+	input           string // Repository input
+	compareInput1   string // First repo for comparison
+	compareInput2   string // Second repo for comparison
+	compareStep     int    // 0 = entering first repo, 1 = entering second repo
+	spinner         spinner.Model
+	dashboard       DashboardModel
+	tree            TreeModel
+	fileEdit        FileEditModel
+	help            help.Model
+	progress        *ProgressTracker
+	err             error
+	windowWidth     int
+	windowHeight    int
+	analysisType    string // quick, detailed, custom
+	appSettings     tea.LogOptionsSetter
+	compareResult   *CompareResult // Holds comparison data
+	history         *History       // Analysis history
+	historyCursor   int            // Current selection in history
+	helpContent     string         // Content for help screen
+	settingsOption  string         // Selected settings option
+	cache           *cache.Cache   // Offline cache for analysis results
+	cacheStatus     string         // Cache status: "fresh", "cached", "expired", ""
+	favorites       *Favorites     // Favorite repositories
+	favoritesCursor int            // Current selection in favorites
 }
 
 func NewMainModel() MainModel {
@@ -137,6 +140,17 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				cmds = append(cmds, m.analyzeRepo(m.dashboard.data.Repo.FullName))
 			}
 		}
+		if msg == "add_to_favorites" {
+			// Add current repo to favorites
+			if m.dashboard.data.Repo != nil {
+				if m.favorites == nil {
+					m.favorites, _ = LoadFavorites()
+				}
+				m.favorites.Add(m.dashboard.data.Repo.FullName)
+				m.favorites.Save()
+				m.err = fmt.Errorf("⭐ Added to favorites: %s", m.dashboard.data.Repo.FullName)
+			}
+		}
 	}
 
 	switch m.state {
@@ -157,23 +171,29 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.state = stateInput
 				}
 				m.menu.Done = false
-			case 1: // Compare
+			case 1: // Favorites
+				m.state = stateFavorites
+				m.favoritesCursor = 0
+				favs, _ := LoadFavorites()
+				m.favorites = favs
+				m.menu.Done = false
+			case 2: // Compare
 				m.state = stateCompareInput
 				m.compareStep = 0
 				m.compareInput1 = ""
 				m.compareInput2 = ""
 				m.menu.Done = false
-			case 2: // History
+			case 3: // History
 				m.state = stateHistory
 				m.historyCursor = 0
 				history, _ := LoadHistory()
 				m.history = history
 				m.menu.Done = false
-			case 3: // Clone Repository
+			case 4: // Clone Repository
 				m.state = stateCloneInput
 				m.input = ""
 				m.menu.Done = false
-			case 4: // Settings
+			case 5: // Settings
 				if m.menu.submenuType == "settings" {
 					// Settings option selection
 					settingsOptions := []string{"theme", "cache", "export", "token", "reset"}
@@ -183,7 +203,7 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.state = stateSettings
 				}
 				m.menu.Done = false
-			case 5: // Help
+			case 6: // Help
 				if m.menu.submenuType == "help" {
 					// Help option selection
 					helpOptions := []string{"shortcuts", "getting-started", "features", "troubleshooting"}
@@ -193,7 +213,7 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.state = stateHelp
 				}
 				m.menu.Done = false
-			case 6: // Exit
+			case 7: // Exit
 				return m, tea.Quit
 			}
 		}
@@ -402,6 +422,45 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.progress = nil
 		}
 
+	case stateFavorites:
+		switch msg := msg.(type) {
+		case tea.KeyMsg:
+			switch msg.String() {
+			case "up", "k":
+				if m.favoritesCursor > 0 {
+					m.favoritesCursor--
+				}
+			case "down", "j":
+				if m.favorites != nil && m.favoritesCursor < len(m.favorites.Items)-1 {
+					m.favoritesCursor++
+				}
+			case "enter":
+				// Analyze selected favorite
+				if m.favorites != nil && len(m.favorites.Items) > 0 {
+					repoName := m.favorites.Items[m.favoritesCursor].RepoName
+					m.favorites.UpdateUsage(repoName)
+					m.favorites.Save()
+					m.input = repoName
+					m.state = stateLoading
+					cmds = append(cmds, m.analyzeRepo(repoName))
+				}
+			case "d":
+				// Remove from favorites
+				if m.favorites != nil && len(m.favorites.Items) > 0 {
+					m.favorites.Remove(m.favorites.Items[m.favoritesCursor].RepoName)
+					m.favorites.Save()
+					if m.favoritesCursor >= len(m.favorites.Items) && m.favoritesCursor > 0 {
+						m.favoritesCursor--
+					}
+				}
+			case "a":
+				// Add new favorite (go to input)
+				m.state = stateInput
+			case "q", "esc":
+				m.state = stateMenu
+			}
+		}
+
 	case stateHistory:
 		switch msg := msg.(type) {
 		case tea.KeyMsg:
@@ -602,6 +661,8 @@ func (m MainModel) View() string {
 		return m.inputView()
 	case stateCompareInput:
 		return m.compareInputView()
+	case stateFavorites:
+		return m.favoritesView()
 	case stateHistory:
 		return m.historyView()
 	case stateCloneInput:
@@ -1034,6 +1095,76 @@ func sanitizeRepoInput(input string) string {
 	clean = strings.TrimSuffix(clean, "/")
 
 	return clean
+}
+
+func (m MainModel) favoritesView() string {
+	header := TitleStyle.Render("⭐ Favorite Repositories")
+
+	if m.favorites == nil || len(m.favorites.Items) == 0 {
+		content := lipgloss.JoinVertical(
+			lipgloss.Left,
+			header,
+			BoxStyle.Render("No favorites yet!\n\nAnalyze a repository and press 'b' to bookmark it."),
+			SubtleStyle.Render("a: add new • q/ESC: back to menu"),
+		)
+
+		if m.windowWidth == 0 {
+			return content
+		}
+
+		return lipgloss.Place(
+			m.windowWidth,
+			m.windowHeight,
+			lipgloss.Center,
+			lipgloss.Center,
+			content,
+		)
+	}
+
+	// Build favorites list
+	var lines []string
+	lines = append(lines, fmt.Sprintf("%-35s │ %-10s │ %s", "Repository", "Uses", "Last Used"))
+	lines = append(lines, strings.Repeat("─", 65))
+
+	for i, fav := range m.favorites.Items {
+		prefix := "  "
+		if i == m.favoritesCursor {
+			prefix = "▶ "
+		}
+		line := fmt.Sprintf("%s%-33s │ %-10d │ %s",
+			prefix,
+			fav.RepoName,
+			fav.UseCount,
+			fav.LastUsed.Format("2006-01-02"),
+		)
+		if i == m.favoritesCursor {
+			lines = append(lines, SelectedStyle.Render(line))
+		} else {
+			lines = append(lines, line)
+		}
+	}
+
+	tableBox := BoxStyle.Render(strings.Join(lines, "\n"))
+	footer := SubtleStyle.Render("↑↓: navigate • Enter: analyze • d: remove • a: add new • q/ESC: back")
+
+	content := lipgloss.JoinVertical(
+		lipgloss.Left,
+		header,
+		tableBox,
+		footer,
+	)
+
+	if m.windowWidth == 0 {
+		return content
+	}
+
+	return lipgloss.Place(
+		m.windowWidth,
+		m.windowHeight,
+		lipgloss.Center,
+		lipgloss.Center,
+		content,
+	)
 }
 
 func (m MainModel) historyView() string {

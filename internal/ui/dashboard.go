@@ -129,6 +129,12 @@ func (m DashboardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, func() tea.Msg { return "refresh_data" }
 			}
 
+		case "b":
+			// Add to favorites
+			if m.data.Repo != nil {
+				return m, func() tea.Msg { return "add_to_favorites" }
+			}
+
 		// View switching keybindings
 		case "1":
 			m.currentView = viewOverview
