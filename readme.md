@@ -94,15 +94,77 @@ repo-analyzer/
 
 ---
 
+## 🏗️ Architecture Overview
+
+Repo-lyzer follows a **modular architecture** with clear separation of concerns:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         main.go                                  │
+│                    (Application Entry)                           │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                          cmd/                                    │
+│              (CLI Commands & Menu System)                        │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                       internal/ui/                               │
+│              (Interactive Terminal UI - Bubble Tea)              │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+              ┌───────────────┼───────────────┐
+              ▼               ▼               ▼
+┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐
+│ internal/github │ │internal/analyzer│ │ internal/output │
+│   (API Client)  │ │ (Computations)  │ │  (Formatting)   │
+└─────────────────┘ └─────────────────┘ └─────────────────┘
+```
+
+### Key Directories
+
+| Directory | Purpose |
+|-----------|---------|
+| `cmd/` | CLI commands and menu launcher |
+| `internal/github/` | GitHub REST API client (repos, commits, contributors, languages) |
+| `internal/analyzer/` | Metric computations (health score, bus factor, maturity) |
+| `internal/ui/` | Interactive TUI components (Bubble Tea framework) |
+| `internal/output/` | Output formatting for CLI mode |
+| `docs/` | Project documentation |
+
+### Data Flow
+
+```
+User Input → GitHub API → Analyzers → Dashboard Display
+     │            │            │              │
+     │            │            │              └── 7 interactive views
+     │            │            └── Health, Bus Factor, Maturity scores
+     │            └── Repos, Commits, Contributors, Languages
+     └── owner/repo format
+```
+
+📖 **For detailed architecture documentation, see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**
+
+---
+
 ## 📚 Documentation
 
 For detailed information about the project, please refer to the documentation in the `docs/` folder:
 
+### For Contributors
+- **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** – 🆕 Complete architecture guide for contributors
+- **[ANALYZER_INTEGRATION.md](docs/ANALYZER_INTEGRATION.md)** – How to add new analyzers
+- **[IMPLEMENTATION_DETAILS.md](docs/IMPLEMENTATION_DETAILS.md)** – Technical implementation details
+
+### Reference
 - **[DOCUMENTATION_INDEX.md](docs/DOCUMENTATION_INDEX.md)** – Main index for all documentation
 - **[QUICK_REFERENCE.md](docs/QUICK_REFERENCE.md)** – Quick reference guide
-- **[IMPLEMENTATION_DETAILS.md](docs/IMPLEMENTATION_DETAILS.md)** – Technical implementation details
-- **[ANALYZER_INTEGRATION.md](docs/ANALYZER_INTEGRATION.md)** – Analyzer integration guide
 - **[CHANGE_LOG.md](docs/CHANGE_LOG.md)** – Changelog and version history
+
+### Development History
 - **[PHASE2_README.md](docs/PHASE2_README.md)** – Phase 2 development overview
 
 ---

@@ -13,12 +13,12 @@ import (
 
 // ExportData is the structure for JSON export with additional metadata
 type ExportData struct {
-	ExportedAt    string         `json:"exported_at"`
-	Repository    RepoExport     `json:"repository"`
-	Metrics       MetricsExport  `json:"metrics"`
-	Languages     map[string]int `json:"languages"`
+	ExportedAt      string              `json:"exported_at"`
+	Repository      RepoExport          `json:"repository"`
+	Metrics         MetricsExport       `json:"metrics"`
+	Languages       map[string]int      `json:"languages"`
 	TopContributors []ContributorExport `json:"top_contributors"`
-	CommitCount   int            `json:"commit_count_1y"`
+	CommitCount     int                 `json:"commit_count_1y"`
 }
 
 type RepoExport struct {
@@ -166,7 +166,7 @@ func ExportMarkdown(data AnalysisResult, _ string) (string, error) {
 
 	md := fmt.Sprintf("# Analysis for %s\n\n", data.Repo.FullName)
 	md += fmt.Sprintf("*Exported: %s*\n\n", time.Now().Format("2006-01-02 15:04"))
-	
+
 	md += "## Repository Info\n"
 	md += fmt.Sprintf("- **Stars:** %d\n", data.Repo.Stars)
 	md += fmt.Sprintf("- **Forks:** %d\n", data.Repo.Forks)
@@ -213,13 +213,12 @@ func ExportMarkdown(data AnalysisResult, _ string) (string, error) {
 	return filename, nil
 }
 
-
 // CompareExportData is the structure for comparison JSON export
 type CompareExportData struct {
-	ExportedAt string      `json:"exported_at"`
-	Repo1      ExportData  `json:"repo1"`
-	Repo2      ExportData  `json:"repo2"`
-	Verdict    string      `json:"verdict"`
+	ExportedAt string     `json:"exported_at"`
+	Repo1      ExportData `json:"repo1"`
+	Repo2      ExportData `json:"repo2"`
+	Verdict    string     `json:"verdict"`
 }
 
 func buildExportData(data AnalysisResult) ExportData {

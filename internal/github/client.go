@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 )
 
 type Client struct {
@@ -63,4 +64,25 @@ func (c *Client) GetUser() (*User, error) {
 	var u User
 	err := c.get("https://api.github.com/user", &u)
 	return &u, err
+}
+
+// GetFileContent fetches the content of a file from a repository
+// Returns the base64 encoded content
+func (c *Client) GetFileContent(owner, repo, path string) (string, error) {
+	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/contents/%s", owner, repo, path)
+
+	var result struct {
+		Content  string `json:"content"`
+		Encoding string `json:"encoding"`
+	}
+
+	if err := c.get(url, &result); err != nil {
+		return "", err
+	}
+
+	// GitHub returns content with newlines, remove them for proper base64 decoding
+	content := result.Content
+	content = strings.ReplaceAll(content, "\n", "")
+
+	return content, nil
 }

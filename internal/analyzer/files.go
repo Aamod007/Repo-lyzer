@@ -1,4 +1,5 @@
 package analyzer
+ feat/code-search-filter-by-filetype
 
 import (
 	"path/filepath"
@@ -36,3 +37,4 @@ func FilterFilesByExtension(files []string, extensions []string) []string {
 
 	return filtered
 }
+

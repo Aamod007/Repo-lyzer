@@ -1,10 +1,15 @@
 package ui
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/agnivo988/Repo-lyzer/internal/analyzer"
+	"github.com/agnivo988/Repo-lyzer/internal/cache"
 	"github.com/agnivo988/Repo-lyzer/internal/github"
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/spinner"
@@ -27,6 +32,8 @@ const (
 	stateCompareInput
 	stateCompareLoading
 	stateCompareResult
+	stateCloneInput
+	stateCloning
 )
 
 type MainModel struct {
@@ -52,12 +59,17 @@ type MainModel struct {
 	historyCursor  int            // Current selection in history
 	helpContent    string         // Content for help screen
 	settingsOption string         // Selected settings option
+	cache          *cache.Cache   // Offline cache for analysis results
+	cacheStatus    string         // Cache status: "fresh", "cached", "expired", ""
 }
 
 func NewMainModel() MainModel {
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
+
+	// Initialize cache
+	repoCache, _ := cache.NewCache()
 
 	return MainModel{
 		state:       stateMenu,
@@ -66,6 +78,7 @@ func NewMainModel() MainModel {
 		dashboard:   NewDashboardModel(),
 		tree:        NewTreeModel(nil),
 		appSettings: nil,
+		cache:       repoCache,
 	}
 }
 
@@ -156,17 +169,21 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				history, _ := LoadHistory()
 				m.history = history
 				m.menu.Done = false
-			case 3: // Settings
+			case 3: // Clone Repository
+				m.state = stateCloneInput
+				m.input = ""
+				m.menu.Done = false
+			case 4: // Settings
 				if m.menu.submenuType == "settings" {
 					// Settings option selection
-					settingsOptions := []string{"theme", "export", "token", "reset"}
+					settingsOptions := []string{"theme", "cache", "export", "token", "reset"}
 					if m.menu.submenuCursor < len(settingsOptions) {
 						m.settingsOption = settingsOptions[m.menu.submenuCursor]
 					}
 					m.state = stateSettings
 				}
 				m.menu.Done = false
-			case 4: // Help
+			case 5: // Help
 				if m.menu.submenuType == "help" {
 					// Help option selection
 					helpOptions := []string{"shortcuts", "getting-started", "features", "troubleshooting"}
@@ -176,7 +193,7 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.state = stateHelp
 				}
 				m.menu.Done = false
-			case 5: // Exit
+			case 6: // Exit
 				return m, tea.Quit
 			}
 		}
@@ -355,13 +372,28 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		if result, ok := msg.(AnalysisResult); ok {
 			m.dashboard.SetData(result)
+			m.dashboard.SetCacheStatus("fresh")
 			m.state = stateDashboard
 			m.progress = nil
+			m.cacheStatus = "fresh"
 			// Save to history
 			if m.history == nil {
 				m.history, _ = LoadHistory()
 			}
 			m.history.AddEntry(result)
+			m.history.Save()
+		}
+		if cachedResult, ok := msg.(CachedAnalysisResult); ok {
+			m.dashboard.SetData(cachedResult.Result)
+			m.dashboard.SetCacheStatus("cached")
+			m.state = stateDashboard
+			m.progress = nil
+			m.cacheStatus = "cached"
+			// Save to history
+			if m.history == nil {
+				m.history, _ = LoadHistory()
+			}
+			m.history.AddEntry(cachedResult.Result)
 			m.history.Save()
 		}
 		if err, ok := msg.(error); ok {
@@ -426,6 +458,88 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			switch msg.String() {
 			case "q", "esc":
 				m.state = stateMenu
+			case "t":
+				// Cycle through themes
+				theme := CycleTheme()
+				m.err = fmt.Errorf("Theme changed to: %s", theme.Name)
+			case "1", "2", "3", "4", "5", "6", "7":
+				// Select theme by number
+				idx := int(msg.String()[0] - '1')
+				if idx >= 0 && idx < len(AvailableThemes) {
+					theme := SetThemeByIndex(idx)
+					m.err = fmt.Errorf("Theme: %s", theme.Name)
+				}
+			case "e":
+				// Toggle cache enabled (only in cache settings)
+				if m.settingsOption == "cache" && m.cache != nil {
+					cfg := m.cache.GetConfig()
+					m.cache.SetEnabled(!cfg.Enabled)
+					if cfg.Enabled {
+						m.err = fmt.Errorf("Cache disabled")
+					} else {
+						m.err = fmt.Errorf("Cache enabled")
+					}
+				}
+			case "a":
+				// Toggle auto-cache (only in cache settings)
+				if m.settingsOption == "cache" && m.cache != nil {
+					cfg := m.cache.GetConfig()
+					m.cache.SetAutoCache(!cfg.AutoCache)
+					if cfg.AutoCache {
+						m.err = fmt.Errorf("Auto-cache disabled")
+					} else {
+						m.err = fmt.Errorf("Auto-cache enabled")
+					}
+				}
+			case "c":
+				// Clear all cache (only in cache settings)
+				if m.settingsOption == "cache" && m.cache != nil {
+					m.cache.Clear()
+					m.err = fmt.Errorf("Cache cleared")
+				}
+			case "x":
+				// Clean expired entries (only in cache settings)
+				if m.settingsOption == "cache" && m.cache != nil {
+					removed := m.cache.CleanExpired()
+					m.err = fmt.Errorf("Removed %d expired entries", removed)
+				}
+			}
+		}
+
+	case stateCloneInput:
+		switch msg := msg.(type) {
+		case tea.KeyMsg:
+			switch msg.String() {
+			case "enter":
+				if m.input != "" {
+					m.state = stateCloning
+					cmds = append(cmds, m.cloneRepo(m.input))
+				}
+			case "esc":
+				m.state = stateMenu
+				m.input = ""
+			case "backspace":
+				if len(m.input) > 0 {
+					m.input = m.input[:len(m.input)-1]
+				}
+			case "ctrl+u":
+				m.input = ""
+			default:
+				if len(msg.String()) == 1 {
+					m.input += msg.String()
+				}
+			}
+		}
+
+	case stateCloning:
+		if result, ok := msg.(cloneResult); ok {
+			if result.err != nil {
+				m.err = result.err
+				m.state = stateCloneInput
+			} else {
+				m.err = fmt.Errorf("✓ Cloned to: %s", result.path)
+				m.state = stateMenu
+				m.input = ""
 			}
 		}
 
@@ -490,6 +604,10 @@ func (m MainModel) View() string {
 		return m.compareInputView()
 	case stateHistory:
 		return m.historyView()
+	case stateCloneInput:
+		return m.cloneInputView()
+	case stateCloning:
+		return m.cloningView()
 	case stateLoading:
 		loadMsg := fmt.Sprintf("📊 Analyzing %s", m.input)
 		if m.analysisType != "" {
@@ -575,11 +693,69 @@ func (m MainModel) inputView() string {
 	)
 }
 
+// cloneResult is the result of a clone operation
+type cloneResult struct {
+	err  error
+	path string
+}
+
+// cloneRepo clones a repository to the Desktop folder
+func (m MainModel) cloneRepo(repoName string) tea.Cmd {
+	return func() tea.Msg {
+		parts := strings.Split(repoName, "/")
+		if len(parts) != 2 {
+			return cloneResult{err: fmt.Errorf("repository must be in owner/repo format")}
+		}
+
+		// Get Desktop path
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return cloneResult{err: err}
+		}
+		desktopPath := filepath.Join(home, "Desktop")
+		clonePath := filepath.Join(desktopPath, parts[1])
+
+		// Check if already exists
+		if _, err := os.Stat(clonePath); err == nil {
+			return cloneResult{err: fmt.Errorf("folder already exists: %s", clonePath)}
+		}
+
+		// Clone the repository
+		repoURL := fmt.Sprintf("https://github.com/%s/%s.git", parts[0], parts[1])
+		cmd := exec.Command("git", "clone", repoURL, clonePath)
+
+		if err := cmd.Run(); err != nil {
+			return cloneResult{err: fmt.Errorf("clone failed: %w", err)}
+		}
+
+		// Open file manager to show the cloned folder
+		openFileManager(clonePath)
+
+		return cloneResult{path: clonePath}
+	}
+}
+
 func (m MainModel) analyzeRepo(repoName string) tea.Cmd {
 	return func() tea.Msg {
 		parts := strings.Split(repoName, "/")
 		if len(parts) != 2 {
 			return fmt.Errorf("repository must be in owner/repo format")
+		}
+
+		// Check cache first
+		if m.cache != nil {
+			if entry, found := m.cache.Get(repoName); found {
+				// Unmarshal cached analysis
+				var result AnalysisResult
+				if err := json.Unmarshal(entry.Analysis, &result); err == nil {
+					// Return cached result with status
+					return CachedAnalysisResult{
+						Result:   result,
+						IsCached: true,
+						CachedAt: entry.CachedAt,
+					}
+				}
+			}
 		}
 
 		tracker := NewProgressTracker()
@@ -621,12 +797,15 @@ func (m MainModel) analyzeRepo(repoName string) tea.Cmd {
 		score := analyzer.CalculateHealth(repo, commits)
 		busFactor, busRisk := analyzer.BusFactor(contributors)
 		maturityScore, maturityLevel := analyzer.RepoMaturityScore(repo, len(commits), len(contributors), false)
+
+		// Stage 6: Analyze dependencies
+		deps, _ := analyzer.AnalyzeDependencies(client, parts[0], parts[1], repo.DefaultBranch, fileTree)
 		tracker.NextStage()
 
 		// Mark complete
 		tracker.NextStage()
 
-		return AnalysisResult{
+		result := AnalysisResult{
 			Repo:          repo,
 			Commits:       commits,
 			Contributors:  contributors,
@@ -637,7 +816,15 @@ func (m MainModel) analyzeRepo(repoName string) tea.Cmd {
 			BusRisk:       busRisk,
 			MaturityScore: maturityScore,
 			MaturityLevel: maturityLevel,
+			Dependencies:  deps,
 		}
+
+		// Save to cache
+		if m.cache != nil {
+			m.cache.Set(repoName, result)
+		}
+
+		return result
 	}
 }
 
@@ -922,6 +1109,66 @@ func (m MainModel) historyView() string {
 	)
 }
 
+func (m MainModel) cloneInputView() string {
+	header := TitleStyle.Render("📥 CLONE REPOSITORY")
+
+	inputContent := fmt.Sprintf(
+		"Enter repository to clone (owner/repo):\n\n> %s█\n\n"+
+			"The repository will be cloned to your Desktop folder.",
+		m.input,
+	)
+
+	var errMsg string
+	if m.err != nil {
+		errMsg = "\n" + ErrorStyle.Render(m.err.Error())
+	}
+
+	footer := SubtleStyle.Render("Enter: clone • ESC: back • Ctrl+U: clear")
+
+	content := lipgloss.JoinVertical(
+		lipgloss.Left,
+		header,
+		BoxStyle.Render(inputContent),
+		errMsg,
+		footer,
+	)
+
+	if m.windowWidth == 0 {
+		return content
+	}
+
+	return lipgloss.Place(
+		m.windowWidth,
+		m.windowHeight,
+		lipgloss.Center,
+		lipgloss.Center,
+		content,
+	)
+}
+
+func (m MainModel) cloningView() string {
+	header := TitleStyle.Render("📥 CLONING REPOSITORY")
+
+	content := fmt.Sprintf(
+		"%s Cloning %s to Desktop...\n\n"+
+			"Please wait while the repository is being cloned.",
+		m.spinner.View(),
+		m.input,
+	)
+
+	return lipgloss.Place(
+		m.windowWidth,
+		m.windowHeight,
+		lipgloss.Center,
+		lipgloss.Center,
+		lipgloss.JoinVertical(
+			lipgloss.Left,
+			header,
+			BoxStyle.Render(content),
+		),
+	)
+}
+
 func (m MainModel) helpView() string {
 	var title string
 	var content string
@@ -1064,22 +1311,69 @@ func (m MainModel) settingsView() string {
 	switch m.settingsOption {
 	case "theme":
 		title = "🎨 Theme Settings"
-		content = `
-Theme customization options:
 
-Current theme: Default
+		// Build theme list with current indicator
+		themeList := ""
+		for i, theme := range AvailableThemes {
+			indicator := "  "
+			if i == CurrentThemeIndex {
+				indicator = "▶ "
+			}
+			themeList += fmt.Sprintf("  %s[%d] %s\n", indicator, i+1, theme.Name)
+		}
+
+		content = fmt.Sprintf(`
+Current theme: %s
 
 Available themes:
-  • Default (Dark)
-  • Light
-  • High Contrast
+%s
+Keybindings:
+  • Press 1-7 to select a theme
+  • Press 't' to cycle through themes
 
-To change theme:
-  1. Edit the theme configuration
-  2. Restart the application
+Theme changes are applied immediately!
+`, CurrentTheme.Name, themeList)
+	case "cache":
+		title = "� Cachre Settings"
 
-Note: Theme changes require application restart.
-`
+		// Get cache stats
+		cacheInfo := "Cache not initialized"
+		if m.cache != nil {
+			stats := m.cache.GetStats()
+			cfg := m.cache.GetConfig()
+
+			enabledStr := "Disabled"
+			if cfg.Enabled {
+				enabledStr = "Enabled"
+			}
+			autoStr := "Off"
+			if cfg.AutoCache {
+				autoStr = "On"
+			}
+
+			cacheInfo = fmt.Sprintf(`
+Status: %s
+Auto-cache: %s
+TTL: %s
+Max Size: %d MB
+
+Statistics:
+  • Total repos cached: %d
+  • Valid (not expired): %d
+  • Expired: %d
+  • Cache size: %.2f MB
+  • Location: %s
+
+Keybindings:
+  • Press 'e' to toggle caching
+  • Press 'a' to toggle auto-cache
+  • Press 'c' to clear all cache
+  • Press 'x' to clean expired entries
+`, enabledStr, autoStr, cache.FormatTTL(cfg.TTL), cfg.MaxSize,
+				stats.TotalRepos, stats.ValidRepos, stats.ExpiredRepos,
+				stats.TotalSizeMB, stats.CacheDir)
+		}
+		content = cacheInfo
 	case "export":
 		title = "📤 Export Options"
 		content = `
@@ -1090,7 +1384,7 @@ Export formats available:
   • PDF: Professional documents
 
 Default export location:
-  ./exports/
+  ~/Downloads/
 
 To change export settings:
   1. Modify export configuration

@@ -52,7 +52,6 @@ func NewAnalyzerDataBridge(result AnalysisResult) *AnalyzerDataBridge {
 	return bridge
 }
 
-
 // GetHealthMetrics returns health-related metrics
 func (b *AnalyzerDataBridge) GetHealthMetrics() map[string]interface{} {
 	if b.IsEmpty() {

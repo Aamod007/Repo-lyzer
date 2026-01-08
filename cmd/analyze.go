@@ -4,11 +4,14 @@ import (
 	"fmt"
 	"strings"
 
+feat/code-search-filter-by-filetype
 	"github.com/spf13/cobra"
+
 
 	"github.com/agnivo988/Repo-lyzer/internal/analyzer"
 	"github.com/agnivo988/Repo-lyzer/internal/github"
 	"github.com/agnivo988/Repo-lyzer/internal/output"
+	"github.com/spf13/cobra"
 )
 
 var fileTypes []string
@@ -52,6 +55,7 @@ var analyzeCmd = &cobra.Command{
 			return fmt.Errorf("failed to get file tree: %w", err)
 		}
 
+ feat/code-search-filter-by-filetype
 		// NEW: apply file-type filtering if provided
 		filteredFiles := analyzer.FilterFilesByExtension(tree, fileTypes)
 

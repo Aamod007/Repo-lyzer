@@ -27,7 +27,6 @@ func RunCompare(r1, r2 string) error {
 	return compareCmd.Execute()
 }
 
-
 var compareCmd = &cobra.Command{
 	Use:   "compare owner1/repo1 owner2/repo2",
 	Short: "Compare two GitHub repositories",
@@ -141,4 +140,3 @@ func countTreeStats(tree []github.TreeEntry) (files, dirs, totalSize int) {
 	}
 	return
 }
-

@@ -1,6 +1,11 @@
 package ui
 
-import "github.com/agnivo988/Repo-lyzer/internal/github"
+import (
+	"time"
+
+	"github.com/agnivo988/Repo-lyzer/internal/analyzer"
+	"github.com/agnivo988/Repo-lyzer/internal/github"
+)
 
 type AnalysisResult struct {
 	Repo          *github.Repo
@@ -13,6 +18,14 @@ type AnalysisResult struct {
 	BusRisk       string
 	MaturityScore int
 	MaturityLevel string
+	Dependencies  *analyzer.DependencyAnalysis
+}
+
+// CachedAnalysisResult wraps AnalysisResult with cache metadata
+type CachedAnalysisResult struct {
+	Result   AnalysisResult
+	IsCached bool
+	CachedAt time.Time
 }
 
 feat/empty-state-error-handling-58

@@ -25,7 +25,7 @@ const (
 )
 
 type DashboardModel struct {
-<<<<<<< HEAD
+ HEAD
 	data        AnalysisResult
 	BackToMenu  bool
 	width       int
@@ -34,7 +34,8 @@ type DashboardModel struct {
 	statusMsg   string
 	currentView dashboardView
 	showHelp    bool
-=======
+feat/code-search-filter-by-filetype
+
 	data       AnalysisResult
 	err        error // explicit error state
 	BackToMenu bool
@@ -42,7 +43,10 @@ type DashboardModel struct {
 	height     int
 	showExport bool
 	statusMsg  string
->>>>>>> 552a131 (fix: remove duplicate tree definitions and unused types (#58))
+552a131 (fix: remove duplicate tree definitions and unused types (#58))
+
+	cacheStatus string // "fresh", "cached", or ""
+
 }
 
 func NewDashboardModel() DashboardModel {
@@ -55,6 +59,10 @@ func (m DashboardModel) Init() tea.Cmd { return nil }
 
 func (m *DashboardModel) SetData(data AnalysisResult) {
 	m.data = data
+}
+
+func (m *DashboardModel) SetCacheStatus(status string) {
+	m.cacheStatus = status
 }
 
 type exportMsg struct {
@@ -76,14 +84,14 @@ func (m DashboardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else {
 			m.statusMsg = msg.msg
 		}
-<<<<<<< HEAD
+HEAD
  feat/empty-state-error-handling-58
 		return m, tea.Tick(3*time.Second, func(t time.Time) tea.Msg { return "clear_status" })
-=======
+
 		return m, tea.Tick(3*time.Second, func(t time.Time) tea.Msg {
 			return "clear_status"
 		})
->>>>>>> 552a131 (fix: remove duplicate tree definitions and unused types (#58))
+ 552a131 (fix: remove duplicate tree definitions and unused types (#58))
 
 		return m, tea.Tick(3*time.Second, func(time.Time) tea.Msg {
 			return "clear_status"
@@ -108,36 +116,44 @@ func (m DashboardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.BackToMenu = true
 			}
 
-<<<<<<< HEAD
+ HEAD
 		case "?", "h":
 			m.showHelp = !m.showHelp
 
-=======
->>>>>>> 552a131 (fix: remove duplicate tree definitions and unused types (#58))
+
+ 552a131 (fix: remove duplicate tree definitions and unused types (#58))
 		case "e":
 			m.showExport = !m.showExport
 
 		case "j":
 			if m.showExport {
 				return m, func() tea.Msg {
-<<<<<<< HEAD
+ feat/code-search-filter-by-filetype
+ HEAD
 					_,err := ExportJSON(m.data, "analysis.json")
+
+					_, err := ExportJSON(m.data, "analysis.json")
+
 					if err != nil {
 						return exportMsg{err, ""}
 					}
 					return exportMsg{nil, "✓ Exported to analysis.json"}
-=======
+
 					err := ExportJSON(m.data, "analysis.json")
 					return exportMsg{err: err, msg: "Exported to analysis.json"}
->>>>>>> 552a131 (fix: remove duplicate tree definitions and unused types (#58))
+ 552a131 (fix: remove duplicate tree definitions and unused types (#58))
 				}
 			}
 
 		case "m":
 			if m.showExport {
 				return m, func() tea.Msg {
-<<<<<<< HEAD
+ feat/code-search-filter-by-filetype
+HEAD
 					_,err := ExportMarkdown(m.data, "analysis.md")
+
+					_, err := ExportMarkdown(m.data, "analysis.md")
+
 					if err != nil {
 						return exportMsg{err, ""}
 					}
@@ -195,12 +211,20 @@ func (m DashboardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if !m.showHelp && !m.showExport {
 				if m.currentView > viewOverview {
 					m.currentView--
-=======
+
 					err := ExportMarkdown(m.data, "analysis.md")
 					return exportMsg{err: err, msg: "Exported to analysis.md"}
->>>>>>> 552a131 (fix: remove duplicate tree definitions and unused types (#58))
+ 552a131 (fix: remove duplicate tree definitions and unused types (#58))
 				}
 			}
+
+		case "t":
+			// Toggle theme
+			theme := CycleTheme()
+			m.statusMsg = fmt.Sprintf("Theme: %s", theme.Name)
+			return m, tea.Tick(2*time.Second, func(time.Time) tea.Msg {
+				return "clear_status"
+			})
 		}
 	}
 
@@ -223,17 +247,16 @@ func (m DashboardModel) View() string {
 		return "No data loaded"
 	}
 
-<<<<<<< HEAD
+ HEAD
 	// Show help overlay
 	if m.showHelp {
 		return m.helpView()
 	}
-=======
+
 	// Header
 	header := TitleStyle.Render(
 		fmt.Sprintf("Analysis for %s", m.data.Repo.FullName),
-	)
->>>>>>> 552a131 (fix: remove duplicate tree definitions and unused types (#58))
+ 552a131 (fix: remove duplicate tree definitions and unused types (#58))
 
 	var content string
 
@@ -309,8 +332,19 @@ func (m DashboardModel) renderTabs() string {
 }
 
 func (m DashboardModel) overviewView() string {
+	// Cache status indicator
+	cacheIndicator := ""
+	switch m.cacheStatus {
+	case "fresh":
+		cacheIndicator = " 🟢 Fresh"
+	case "cached":
+		cacheIndicator = " 🟡 Cached"
+	case "expired":
+		cacheIndicator = " 🔴 Expired"
+	}
+
 	header := TitleStyle.Render(
-		fmt.Sprintf("📊 Analysis for %s", m.data.Repo.FullName),
+		fmt.Sprintf("📊 Analysis for %s%s", m.data.Repo.FullName, cacheIndicator),
 	)
 
 feat/empty-state-error-handling-58
@@ -325,13 +359,12 @@ feat/empty-state-error-handling-58
 		m.data.MaturityScore,
 	)
 	metricsBox := BoxStyle.Render(metrics)
-
-<<<<<<< HEAD
+ HEAD
  feat/empty-state-error-handling-58
 	// Charts
-=======
+
 	// Commit activity chart
->>>>>>> 552a131 (fix: remove duplicate tree definitions and unused types (#58))
+ 552a131 (fix: remove duplicate tree definitions and unused types (#58))
 	activityData := analyzer.CommitsPerDay(m.data.Commits)
 	chart := RenderCommitActivity(activityData, 10)
 	chartBox := BoxStyle.Render(chart)
@@ -387,8 +420,7 @@ func (m DashboardModel) languagesView() string {
 		return lipgloss.JoinVertical(lipgloss.Left, header, BoxStyle.Render("No language data available"))
 
 	}
-
-<<<<<<< HEAD
+ HEAD
 	// Calculate total bytes
 	total := 0
 	for _, bytes := range m.data.Languages {
@@ -417,7 +449,7 @@ func (m DashboardModel) languagesView() string {
 		}
 		bar := strings.Repeat("█", barLen)
 		lines = append(lines, fmt.Sprintf("%-15s %s %.1f%%", lang.name, bar, pct))
-=======
+
 	for i := 0; i < limit; i++ {
 		icon := "📄"
 		if m.data.FileTree[i].Type == "dir" {
@@ -462,7 +494,7 @@ func (m DashboardModel) languagesView() string {
 			content,
 			exportMenu,
 		)
->>>>>>> 552a131 (fix: remove duplicate tree definitions and unused types (#58))
+ 552a131 (fix: remove duplicate tree definitions and unused types (#58))
 	}
 
 	return lipgloss.JoinVertical(lipgloss.Left, header, BoxStyle.Render(strings.Join(lines, "\n")))
@@ -593,11 +625,11 @@ Actions:
 		m.height,
 		lipgloss.Center,
 		lipgloss.Center,
-<<<<<<< HEAD
+ HEAD
 		lipgloss.JoinVertical(lipgloss.Left, header, BoxStyle.Render(help)),
-=======
+
 		content,
->>>>>>> 552a131 (fix: remove duplicate tree definitions and unused types (#58))
+ 552a131 (fix: remove duplicate tree definitions and unused types (#58))
 	)
 }
 
