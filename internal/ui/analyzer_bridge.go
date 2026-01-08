@@ -36,7 +36,6 @@ func NewAnalyzerDataBridge(result AnalysisResult) *AnalyzerDataBridge {
 	}
 }
 
-
 // GetHealthMetrics returns health-related metrics
 func (b *AnalyzerDataBridge) GetHealthMetrics() map[string]interface{} {
 	return map[string]interface{}{

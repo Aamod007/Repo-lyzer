@@ -3,6 +3,7 @@ package github
 import (
 	"time"
 )
+
 type RateLimit struct {
 	Resources struct {
 		Core struct {
@@ -12,6 +13,7 @@ type RateLimit struct {
 		} `json:"core"`
 	} `json:"resources"`
 }
+
 func (c *Client) GetRateLimit() (*RateLimit, error) {
 	var rateLimit RateLimit
 	err := c.get("https://api.github.com/rate_limit", &rateLimit)

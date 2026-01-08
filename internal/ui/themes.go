@@ -4,17 +4,17 @@ import "github.com/charmbracelet/lipgloss"
 
 // Theme represents a color theme for the UI
 type Theme struct {
-	Name        string
-	Primary     lipgloss.Color
-	Secondary   lipgloss.Color
-	Accent      lipgloss.Color
-	Background  lipgloss.Color
-	Text        lipgloss.Color
-	TextMuted   lipgloss.Color
-	Success     lipgloss.Color
-	Error       lipgloss.Color
-	Warning     lipgloss.Color
-	Border      lipgloss.Color
+	Name       string
+	Primary    lipgloss.Color
+	Secondary  lipgloss.Color
+	Accent     lipgloss.Color
+	Background lipgloss.Color
+	Text       lipgloss.Color
+	TextMuted  lipgloss.Color
+	Success    lipgloss.Color
+	Error      lipgloss.Color
+	Warning    lipgloss.Color
+	Border     lipgloss.Color
 }
 
 // Available themes
@@ -136,14 +136,14 @@ var (
 	}
 
 	// Current active theme
-	CurrentTheme = CatppuccinMocha
+	CurrentTheme      = CatppuccinMocha
 	CurrentThemeIndex = 0
 )
 
 // ApplyTheme updates all style variables with the given theme
 func ApplyTheme(theme Theme) {
 	CurrentTheme = theme
-	
+
 	TitleStyle = lipgloss.NewStyle().
 		Bold(true).
 		Foreground(theme.Primary)

@@ -13,16 +13,16 @@ import (
 )
 
 type FileEditModel struct {
-	filePath    string
-	repoOwner   string
-	repoName    string
-	isOwner     bool
-	width       int
-	height      int
-	Done        bool
-	statusMsg   string
-	clonePath   string
-	isCloned    bool
+	filePath  string
+	repoOwner string
+	repoName  string
+	isOwner   bool
+	width     int
+	height    int
+	Done      bool
+	statusMsg string
+	clonePath string
+	isCloned  bool
 }
 
 func NewFileEditModel(filePath, repoFullName string) FileEditModel {
@@ -153,7 +153,7 @@ func getDesktopPath() string {
 	if err != nil {
 		return "."
 	}
-	
+
 	switch runtime.GOOS {
 	case "windows":
 		return filepath.Join(home, "Desktop")
@@ -172,9 +172,9 @@ func getDesktopPath() string {
 // openInBrowser opens the file on GitHub in the default browser
 func (m FileEditModel) openInBrowser() tea.Cmd {
 	return func() tea.Msg {
-		url := fmt.Sprintf("https://github.com/%s/%s/blob/main%s", 
+		url := fmt.Sprintf("https://github.com/%s/%s/blob/main%s",
 			m.repoOwner, m.repoName, m.filePath)
-		
+
 		var cmd *exec.Cmd
 		switch runtime.GOOS {
 		case "windows":
@@ -184,7 +184,7 @@ func (m FileEditModel) openInBrowser() tea.Cmd {
 		default:
 			cmd = exec.Command("xdg-open", url)
 		}
-		
+
 		err := cmd.Start()
 		return openResultMsg{err}
 	}
@@ -196,7 +196,7 @@ func (m FileEditModel) openInVSCode() tea.Cmd {
 		// Use vscode.dev to open the file in browser-based VS Code
 		url := fmt.Sprintf("https://vscode.dev/github/%s/%s/blob/main%s",
 			m.repoOwner, m.repoName, m.filePath)
-		
+
 		var cmd *exec.Cmd
 		switch runtime.GOOS {
 		case "windows":
@@ -206,7 +206,7 @@ func (m FileEditModel) openInVSCode() tea.Cmd {
 		default:
 			cmd = exec.Command("xdg-open", url)
 		}
-		
+
 		err := cmd.Start()
 		return openResultMsg{err}
 	}
@@ -217,24 +217,24 @@ func (m FileEditModel) cloneToDesktop() tea.Cmd {
 	return func() tea.Msg {
 		desktopPath := getDesktopPath()
 		clonePath := filepath.Join(desktopPath, m.repoName)
-		
+
 		// Check if already exists
 		if _, err := os.Stat(clonePath); err == nil {
 			return cloneResultMsg{fmt.Errorf("folder already exists: %s", clonePath)}
 		}
-		
+
 		// Clone the repository
 		repoURL := fmt.Sprintf("https://github.com/%s/%s.git", m.repoOwner, m.repoName)
 		cmd := exec.Command("git", "clone", repoURL, clonePath)
-		
+
 		err := cmd.Run()
 		if err != nil {
 			return cloneResultMsg{err}
 		}
-		
+
 		// Open file manager to show the cloned folder
 		openFileManager(clonePath)
-		
+
 		return cloneResultMsg{nil}
 	}
 }
@@ -245,17 +245,17 @@ func (m FileEditModel) openClonedInVSCode() tea.Cmd {
 		// Open VS Code in a new window with the cloned repo
 		// -n flag opens a new window
 		filePath := filepath.Join(m.clonePath, strings.TrimPrefix(m.filePath, "/"))
-		
+
 		// First try to open VS Code with the specific file
 		cmd := exec.Command("code", "-n", m.clonePath, "-g", filePath)
 		err := cmd.Start()
-		
+
 		if err != nil {
 			// Fallback: just open the folder
 			cmd = exec.Command("code", "-n", m.clonePath)
 			err = cmd.Start()
 		}
-		
+
 		return openResultMsg{err}
 	}
 }
