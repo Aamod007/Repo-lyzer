@@ -104,7 +104,7 @@ func (m DashboardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "j":
 			if m.showExport {
 				return m, func() tea.Msg {
-					_, err := ExportJSON(m.data, "analysis.json")
+					_,err := ExportJSON(m.data, "analysis.json")
 					if err != nil {
 						return exportMsg{err, ""}
 					}
@@ -115,7 +115,7 @@ func (m DashboardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "m":
 			if m.showExport {
 				return m, func() tea.Msg {
-					_, err := ExportMarkdown(m.data, "analysis.md")
+					_,err := ExportMarkdown(m.data, "analysis.md")
 					if err != nil {
 						return exportMsg{err, ""}
 					}
@@ -130,6 +130,12 @@ func (m DashboardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Refresh - re-analyze current repo
 			if m.data.Repo != nil {
 				return m, func() tea.Msg { return "refresh_data" }
+			}
+
+		case "b":
+			// Add to favorites
+			if m.data.Repo != nil {
+				return m, func() tea.Msg { return "add_to_favorites" }
 			}
 
 		// View switching keybindings
@@ -516,168 +522,196 @@ func (m DashboardModel) contributorInsightsView() string {
 func (m DashboardModel) dependenciesView() string {
 	header := TitleStyle.Render("📦 Dependencies")
 
-	if m.data.Dependencies == nil || len(m.data.Dependencies.Files) == 0 {
-		return lipgloss.JoinVertical(lipgloss.Left, header, BoxStyle.Render("No dependency files found (package.json, go.mod, requirements.txt, etc.)"))
+	insights := m.data.ContributorInsights
+	if insights == nil {
+		// Generate insights on the fly if not pre-computed
+		insights = analyzer.AnalyzeContributors(m.data.Contributors)
 	}
 
-	deps := m.data.Dependencies
-	var sections []string
+	if insights.TotalContributors == 0 {
+		return lipgloss.JoinVertical(lipgloss.Left, header, BoxStyle.Render("No contributor data available"))
+	}
 
-	// Summary
-	summary := fmt.Sprintf(
-		"Total Dependencies: %d\n"+
-			"Package Managers: %s\n"+
-			"Lock File: %s",
-		deps.TotalDeps,
-		strings.Join(deps.Languages, ", "),
-		boolToYesNo(deps.HasLockFile),
+	// Overview section
+	overview := fmt.Sprintf(
+		"📊 Overview\n"+
+			"   Total Contributors: %d\n"+
+			"   Active Contributors: %d (>1%% commits)\n"+
+			"   Team Size: %s\n"+
+			"   Diversity Score: %.1f/100\n"+
+			"   Concentration Risk: %s",
+		insights.TotalContributors,
+		insights.ActiveContributors,
+		insights.TeamSize,
+		insights.DiversityScore,
+		insights.ConcentrationRisk,
 	)
-	sections = append(sections, BoxStyle.Render("📊 Summary\n"+summary))
 
-	// Show dependencies by file
-	for _, file := range deps.Files {
-		var lines []string
-		lines = append(lines, fmt.Sprintf("📄 %s (%s) - %d deps", file.Filename, file.FileType, file.TotalCount))
-		lines = append(lines, strings.Repeat("─", 50))
-
-		// Group by type
-		prodDeps := []string{}
-		devDeps := []string{}
-		otherDeps := []string{}
-
-		for _, dep := range file.Dependencies {
-			depLine := fmt.Sprintf("  %-30s %s", dep.Name, dep.Version)
-			switch dep.Type {
-			case "production":
-				prodDeps = append(prodDeps, depLine)
-			case "dev":
-				devDeps = append(devDeps, depLine)
-			default:
-				otherDeps = append(otherDeps, depLine)
-			}
-		}
-
-		if len(prodDeps) > 0 {
-			lines = append(lines, "\n🔹 Production:")
-			maxShow := 10
-			if len(prodDeps) < maxShow {
-				maxShow = len(prodDeps)
-			}
-			lines = append(lines, prodDeps[:maxShow]...)
-			if len(prodDeps) > maxShow {
-				lines = append(lines, fmt.Sprintf("  ... and %d more", len(prodDeps)-maxShow))
-			}
-		}
-
-		if len(devDeps) > 0 {
-			lines = append(lines, "\n🔸 Dev:")
-			maxShow := 5
-			if len(devDeps) < maxShow {
-				maxShow = len(devDeps)
-			}
-			lines = append(lines, devDeps[:maxShow]...)
-			if len(devDeps) > maxShow {
-				lines = append(lines, fmt.Sprintf("  ... and %d more", len(devDeps)-maxShow))
-			}
-		}
-
-		if len(otherDeps) > 0 {
-			lines = append(lines, "\n🔻 Other:")
-			lines = append(lines, otherDeps...)
-		}
-
-		sections = append(sections, BoxStyle.Render(strings.Join(lines, "\n")))
+	// Top contributor
+	topContrib := ""
+	if insights.TopContributor != nil {
+		topContrib = fmt.Sprintf(
+			"\n\n👑 Top Contributor\n"+
+				"   %s: %d commits (%.1f%%)\n"+
+				"   Type: %s",
+			insights.TopContributor.Login,
+			insights.TopContributor.Commits,
+			insights.TopContributor.Percentage,
+			insights.TopContributor.ContributorType,
+		)
 	}
 
-	content := lipgloss.JoinVertical(lipgloss.Left, sections...)
-	return lipgloss.JoinVertical(lipgloss.Left, header, content)
-}
+	// Distribution stats
+	dist := insights.CommitDistribution
+	distribution := fmt.Sprintf(
+		"\n\n📈 Commit Distribution\n"+
+			"   Top 1%%:  %.1f%% of commits\n"+
+			"   Top 10%%: %.1f%% of commits\n"+
+			"   Top 50%%: %.1f%% of commits\n"+
+			"   Gini Index: %.2f (0=equal, 1=unequal)",
+		dist.Top1Percent,
+		dist.Top10Percent,
+		dist.Top50Percent,
+		dist.GiniCoefficient,
+	)
 
-func boolToYesNo(b bool) string {
-	if b {
-		return "✓ Yes"
+	// Contributor breakdown
+	breakdown := fmt.Sprintf(
+		"\n\n👥 Contributor Breakdown\n"+
+			"   Veterans (>100 commits): %d\n"+
+			"   New (<10 commits): %d",
+		insights.VeteranContributors,
+		insights.NewContributors,
+	)
+
+	// Recommendations
+	recs := "\n\n💡 Recommendations\n"
+	for _, rec := range insights.Recommendations {
+		recs += fmt.Sprintf("   %s\n", rec)
 	}
-	return "✗ No"
+
+	content := overview + topContrib + distribution + breakdown + recs
+
+	return lipgloss.JoinVertical(lipgloss.Left, header, BoxStyle.Render(content))
 }
 
 func (m DashboardModel) securityView() string {
 	header := TitleStyle.Render("🔒 Security Scan")
 
-	if m.data.Security == nil {
-		return lipgloss.JoinVertical(lipgloss.Left, header, BoxStyle.Render("No security scan data available"))
+	quality := m.data.CodeQuality
+	if quality == nil {
+		// Generate on the fly if not pre-computed
+		quality = analyzer.AnalyzeCodeQuality(m.data.Repo, m.data.FileTree, m.data.Languages)
 	}
 
-	sec := m.data.Security
-
-	// Security score and grade
-	grade := analyzer.GetSecurityGrade(sec.SecurityScore)
-	scoreColor := "green"
-	if sec.SecurityScore < 70 {
-		scoreColor = "red"
-	} else if sec.SecurityScore < 90 {
-		scoreColor = "yellow"
+	if quality.Grade == "N/A" {
+		return lipgloss.JoinVertical(lipgloss.Left, header, BoxStyle.Render("No file tree data available for analysis"))
 	}
 
-	summary := fmt.Sprintf(
-		"Security Score: %d/100 (Grade: %s)\n"+
-			"Packages Scanned: %d\n"+
-			"Vulnerabilities Found: %d\n\n"+
-			"  🔴 Critical: %d\n"+
-			"  🟠 High: %d\n"+
-			"  🟡 Medium: %d\n"+
-			"  🟢 Low: %d",
-		sec.SecurityScore, grade,
-		sec.ScannedPackages,
-		sec.TotalCount,
-		sec.CriticalCount,
-		sec.HighCount,
-		sec.MediumCount,
-		sec.LowCount,
+	// Grade and overall score
+	gradeColor := getGradeColor(quality.Grade)
+	overview := fmt.Sprintf(
+		"🎯 Overall Score: %d/100  Grade: %s\n\n"+
+			"📊 Score Breakdown:\n"+
+			"   Documentation: %s %d/100\n"+
+			"   Testing:       %s %d/100\n"+
+			"   Structure:     %s %d/100\n"+
+			"   Maintenance:   %s %d/100",
+		quality.OverallScore,
+		gradeColor(quality.Grade),
+		getScoreBar(quality.DocumentationScore), quality.DocumentationScore,
+		getScoreBar(quality.TestingScore), quality.TestingScore,
+		getScoreBar(quality.StructureScore), quality.StructureScore,
+		getScoreBar(quality.MaintenanceScore), quality.MaintenanceScore,
 	)
-	_ = scoreColor // Used for styling if needed
 
-	summaryBox := BoxStyle.Render("📊 Summary\n" + summary)
+	// Project files checklist
+	checklist := "\n\n📁 Project Files:\n"
+	checklist += fmt.Sprintf("   %s README\n", checkMark(quality.HasReadme))
+	checklist += fmt.Sprintf("   %s LICENSE\n", checkMark(quality.HasLicense))
+	checklist += fmt.Sprintf("   %s CONTRIBUTING\n", checkMark(quality.HasContributing))
+	checklist += fmt.Sprintf("   %s CHANGELOG\n", checkMark(quality.HasChangelog))
+	checklist += fmt.Sprintf("   %s .gitignore\n", checkMark(quality.HasGitignore))
+	checklist += fmt.Sprintf("   %s CI/CD\n", checkMark(quality.HasCI))
+	checklist += fmt.Sprintf("   %s Tests\n", checkMark(quality.HasTests))
 
-	// List vulnerabilities
-	var vulnLines []string
-	if len(sec.Vulnerabilities) == 0 {
-		vulnLines = append(vulnLines, "✅ No known vulnerabilities found!")
-	} else {
-		vulnLines = append(vulnLines, "⚠️ Vulnerabilities Detected:\n")
-		maxShow := 10
-		if len(sec.Vulnerabilities) < maxShow {
-			maxShow = len(sec.Vulnerabilities)
-		}
+	// File statistics
+	stats := fmt.Sprintf(
+		"\n\n📈 File Statistics:\n"+
+			"   Total Files: %d\n"+
+			"   Source Files: %d\n"+
+			"   Test Files: %d\n"+
+			"   Test Ratio: %.1f%%",
+		quality.FileStats.TotalFiles,
+		quality.FileStats.SourceFiles,
+		quality.FileStats.TestFiles,
+		quality.FileStats.TestRatio*100,
+	)
 
-		for i := 0; i < maxShow; i++ {
-			v := sec.Vulnerabilities[i]
-			emoji := analyzer.GetSeverityEmoji(v.Severity)
-			line := fmt.Sprintf("%s %s - %s@%s", emoji, v.ID, v.Package, v.Version)
-			vulnLines = append(vulnLines, line)
+	// CI/Test frameworks
+	frameworks := ""
+	if len(quality.CIProviders) > 0 {
+		frameworks += fmt.Sprintf("\n\n🔄 CI: %s", strings.Join(quality.CIProviders, ", "))
+	}
+	if len(quality.TestFrameworks) > 0 {
+		frameworks += fmt.Sprintf("\n🧪 Tests: %s", strings.Join(quality.TestFrameworks, ", "))
+	}
 
-			if v.Summary != "" {
-				// Truncate summary if too long
-				summ := v.Summary
-				if len(summ) > 60 {
-					summ = summ[:57] + "..."
-				}
-				vulnLines = append(vulnLines, "   "+summ)
+	// Code smells
+	smells := ""
+	if len(quality.CodeSmells) > 0 {
+		smells = "\n\n⚠️ Issues Found:\n"
+		for _, smell := range quality.CodeSmells {
+			icon := "⚪"
+			if smell.Severity == "High" {
+				icon = "🔴"
+			} else if smell.Severity == "Medium" {
+				icon = "🟡"
 			}
-
-			if v.FixedIn != "" {
-				vulnLines = append(vulnLines, fmt.Sprintf("   Fix: upgrade to %s", v.FixedIn))
-			}
-			vulnLines = append(vulnLines, "")
-		}
-
-		if len(sec.Vulnerabilities) > maxShow {
-			vulnLines = append(vulnLines, fmt.Sprintf("... and %d more vulnerabilities", len(sec.Vulnerabilities)-maxShow))
+			smells += fmt.Sprintf("   %s %s\n", icon, smell.Description)
 		}
 	}
 
-	vulnBox := BoxStyle.Render(strings.Join(vulnLines, "\n"))
+	// Recommendations
+	recs := "\n\n💡 Recommendations:\n"
+	for _, rec := range quality.Recommendations {
+		recs += fmt.Sprintf("   %s\n", rec)
+	}
 
-	return lipgloss.JoinVertical(lipgloss.Left, header, summaryBox, vulnBox)
+	content := overview + checklist + stats + frameworks + smells + recs
+
+	return lipgloss.JoinVertical(lipgloss.Left, header, BoxStyle.Render(content))
+}
+
+// Helper functions for code quality view
+func getGradeColor(grade string) func(string) string {
+	return func(g string) string {
+		switch grade {
+		case "A":
+			return "🟢 " + g
+		case "B":
+			return "🟢 " + g
+		case "C":
+			return "🟡 " + g
+		case "D":
+			return "🟠 " + g
+		default:
+			return "🔴 " + g
+		}
+	}
+}
+
+func getScoreBar(score int) string {
+	filled := score / 10
+	empty := 10 - filled
+	return "[" + strings.Repeat("█", filled) + strings.Repeat("░", empty) + "]"
+}
+
+func checkMark(has bool) string {
+	if has {
+		return "✅"
+	}
+	return "❌"
 }
 
 func (m DashboardModel) recruiterView() string {
