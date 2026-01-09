@@ -4,10 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-feat/code-search-filter-by-filetype
-	"github.com/spf13/cobra"
-
-
 	"github.com/agnivo988/Repo-lyzer/internal/analyzer"
 	"github.com/agnivo988/Repo-lyzer/internal/github"
 	"github.com/agnivo988/Repo-lyzer/internal/output"
@@ -55,9 +51,14 @@ var analyzeCmd = &cobra.Command{
 			return fmt.Errorf("failed to get file tree: %w", err)
 		}
 
- feat/code-search-filter-by-filetype
-		// NEW: apply file-type filtering if provided
-		filteredFiles := analyzer.FilterFilesByExtension(tree, fileTypes)
+		// Apply file-type filtering if provided
+		var filteredFiles []string
+		if len(fileTypes) > 0 {
+			for _, entry := range tree {
+				filteredFiles = append(filteredFiles, entry.Path)
+			}
+			filteredFiles = analyzer.FilterFilesByExtension(filteredFiles, fileTypes)
+		}
 
 		score := analyzer.CalculateHealth(repo, commits)
 		activity := analyzer.CommitsPerDay(commits)
@@ -97,9 +98,7 @@ var analyzeCmd = &cobra.Command{
 
 		// Optional: show filtered file count (non-breaking)
 		if len(fileTypes) > 0 {
-			output.PrintInfo(
-				fmt.Sprintf("Filtered files by extension (%v): %d files matched", fileTypes, len(filteredFiles)),
-			)
+			fmt.Printf("Filtered files by extension (%v): %d files matched\n", fileTypes, len(filteredFiles))
 		}
 
 		return nil

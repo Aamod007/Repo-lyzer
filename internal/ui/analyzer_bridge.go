@@ -40,14 +40,8 @@ func NewAnalyzerDataBridge(result AnalysisResult) *AnalyzerDataBridge {
 		busRisk:       result.BusRisk,
 		maturityScore: result.MaturityScore,
 		maturityLevel: result.MaturityLevel,
- feat/empty-state-error-handling-58
-
 		fileTree:      BuildFileTree(result),
-
 	}
-
-	// Build a default file tree (safe, no unused params)
-	bridge.fileTree = BuildFileTree()
 
 	return bridge
 }
@@ -157,13 +151,11 @@ func (b *AnalyzerDataBridge) GetCompleteAnalysis() map[string]interface{} {
 	}
 
 	return map[string]interface{}{
-		"repository":      b.GetRepositoryInfo(),
-		"health":          b.GetHealthMetrics(),
-		"contributors":    b.GetContributorMetrics(),
-		"commits":         b.GetCommitMetrics(),
-		"languages":       b.GetLanguageMetrics(),
-		"summary":         b.GenerateSummary(),
-		"recommendations": b.GenerateRecommendations(),
+		"repository":   b.GetRepositoryInfo(),
+		"health":       b.GetHealthMetrics(),
+		"contributors": b.GetContributorMetrics(),
+		"commits":      b.GetCommitMetrics(),
+		"languages":    b.GetLanguageMetrics(),
 	}
 }
 
